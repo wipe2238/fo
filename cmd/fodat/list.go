@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -26,16 +25,9 @@ func init() {
 }
 
 func argList(arg *cobra.Command, args []string) (err error) {
-	// TODO move to `cmd`, make less verbose
-	// FIXME expose @steam functionality to users
-	// replace "@steam:<game>:<file>" with absolute path, if needed
-	if strings.HasPrefix(args[0], "@") {
-		var tmp string
-		if tmp, err = cmd.SteamGameFile(args[0], "@steam"); err == nil {
-			args[0] = tmp
-		} else {
-			return err
-		}
+	// FIXME expose functionality to users
+	if err = cmd.ResolveFilename(&args[0], "@"); err != nil {
+		return err
 	}
 
 	var osFile *os.File
