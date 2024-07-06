@@ -1,0 +1,8 @@
+bin/
+_*/
+
+*.no
+
+# copyright not allright
+[Cc][Rr][Ii][Tt][Tt][Ee][Rr].[Dd][Aa][Tt]
+[Mm][Aa][Ss][Tt][Ee][Rr].[Dd][Aa][Tt]

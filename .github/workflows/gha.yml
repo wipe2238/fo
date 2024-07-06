@@ -1,0 +1,22 @@
+name: GHA
+
+on:
+ push:
+  paths:
+  - '.github/workflows/*.yml'
+  - '**/action.yml'
+ pull_request:
+  paths:
+  - '.github/workflows/*.yml'
+  - '**/action.yml'
+
+jobs:
+ actionlint:
+  runs-on: ubuntu-latest
+  steps:
+
+  - uses: actions/checkout@v4
+
+  - uses: docker://rhysd/actionlint:latest
+    with:
+     args: -color
