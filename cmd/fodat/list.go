@@ -55,6 +55,7 @@ func argList(arg *cobra.Command, args []string) (err error) {
 	return doList(arg, osFile, datFile)
 }
 
+// XXX indexes
 func doList(_ *cobra.Command, osFile *os.File, datFile dat.FalloutDat) (err error) {
 	var (
 		dirs  []dat.FalloutDir

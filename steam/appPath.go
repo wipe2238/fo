@@ -9,6 +9,7 @@ import (
 	"github.com/Jleagle/steam-go/steamvdf"
 )
 
+// TODO extract into GetLibrariesPath()
 func GetAppPath(appId uint64) (appPath string, err error) {
 	const (
 		librariesVdf string = "libraryfolders.vdf"

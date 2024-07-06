@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// All top-level args must be added via app.AddCommand(...) (preferably one arg per file),
+// with `GroupID` set to `app.GroupID`, which will place them near the top of usage text
 var app = &cobra.Command{
 	Args:    cobra.ExactArgs(1),
 	GroupID: "main",
@@ -19,8 +21,7 @@ func init() {
 		app.Use = filepath.Base(os.Args[0])
 	}
 
-	// app should have at least one group, whe
-	// which will separate cobra's `completion` and `help`
+	// Default group for all top-level args
 	app.AddGroup(&cobra.Group{
 		ID:    app.GroupID,
 		Title: "Main Commands:",
@@ -32,7 +33,10 @@ func init() {
 
 func main() {
 	// Add `cobra` group for builtin args
-	// Should be right before Execute*(), which will place them at the bottom of usage text
+	// Should be done right before Execute*(), which will place them at the bottom of usage text
+	//
+	// Ungrouped args still will be shown below that, in `Additional Commands`, which might be a
+	// good place for args which are still work in progress, or those added by forks (if any)
 	app.SetHelpCommandGroupID("cobra")
 	app.SetCompletionCommandGroupID("cobra")
 	app.AddGroup(&cobra.Group{
