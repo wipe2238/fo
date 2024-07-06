@@ -21,7 +21,7 @@ var Default = LZSS{
 
 // Decompress
 func (lzss LZSS) Decompress(reader io.Reader, packedSize uint32, unpackedSize uint32) (output []byte, err error) {
-	var self = "lzss.LZSS.Decompress"
+	const self = "lzss.LZSS.Decompress"
 
 	// sanity check
 	if lzss.DictionarySize == 0 {
@@ -49,6 +49,10 @@ func (lzss LZSS) Decompress(reader io.Reader, packedSize uint32, unpackedSize ui
 	for idx := range dictionary {
 		dictionary[idx] = ' '
 	}
+
+	// Ported from code by @ghost2238 and @mattseabrook
+	// https://github.com/rotators/Fo1in2/blob/master/Tools/UndatUI/src/dat.cs
+	// https://github.com/mattseabrook/LZSS/blob/main/2023/lzss.cpp
 
 	for packedSize > 0 {
 		// @FlagNext
@@ -126,7 +130,7 @@ func (lzss LZSS) Decompress(reader io.Reader, packedSize uint32, unpackedSize ui
 				dictionaryIdx++
 			}
 		}
-	} // packedSize > 0
+	}
 
 	return output, nil
 }
