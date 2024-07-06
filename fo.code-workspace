@@ -12,5 +12,8 @@
         "editor.formatOnType": true,
         "editor.formatOnSave": true,
         "editor.formatOnPaste": true,
+        "todo-tree.filtering.excludeGlobs": [
+            "bin/**"
+        ],
     }
 }
