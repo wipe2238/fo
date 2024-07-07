@@ -6,22 +6,14 @@ import (
 
 	"github.com/shoenig/test"
 	"github.com/shoenig/test/must"
+	"github.com/wipe2238/fo/x/maketest"
 )
 
-func DoTestSteamFallout(t *testing.T, appId uint64) {
-	var (
-		err     error
-		canSkip = true // TODO opt-in false
-	)
-
-	// skip current test if steam not found
-	if _, err = GetSteamInstallPath(); err != nil && canSkip {
-		t.Skipf("Steam not installed")
-	}
-	must.NoError(t, err)
+func DoTestSteamFallout(t *testing.T, appId uint64, ext string) {
+	var err error
 
 	// skip current test if app not found
-	if _, err = GetAppPath(appId); err != nil && canSkip {
+	if !IsSteamAppInstalled(appId) || !maketest.Must(ext) {
 		t.Skipf("App %d not installed", appId)
 	}
 	must.NoError(t, err)
@@ -44,10 +36,17 @@ func DoTestSteamFallout(t *testing.T, appId uint64) {
 	}
 }
 
+func TestUnknownApp(t *testing.T) {
+	if IsSteamInstalled() || maketest.Must("steam") {
+		var _, err = GetAppPath(1207)
+		test.Error(t, err)
+	}
+}
+
 func TestSteamFallout1(test *testing.T) {
-	DoTestSteamFallout(test, AppId.Fallout1)
+	DoTestSteamFallout(test, AppId.Fallout1, "fo1")
 }
 
 func TestSteamFallout2(test *testing.T) {
-	DoTestSteamFallout(test, AppId.Fallout2)
+	DoTestSteamFallout(test, AppId.Fallout2, "fo2")
 }
