@@ -4,19 +4,24 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-
-	"github.com/wipe2238/fo/dat"
 )
 
 const (
-	FalloutCompressZero = uint8(iota)
-	FalloutCompressPlain
-	FalloutCompressStore
-	FalloutCompressLZSS
+	FalloutCompressStore uint32 = 0x10 // needs reasearch, see fallout1-re/src/plib/db/db.c, de.flags 16
+	FalloutCompressNone  uint32 = 0x20 // as-is, SizePacked is 0
+	FalloutCompressLZSS  uint32 = 0x40
 )
 
 type FalloutLZSS struct {
 	LZSS
+}
+
+// FalloutFileLZSS holds minimal required data about DAT1 file entry
+type FalloutFileLZSS struct {
+	CompressMode uint32
+	Offset       uint32
+	SizeReal     uint32
+	SizePacked   uint32
 }
 
 // Fallout1 is a small wrapper around LZSS, which helps reading data stored in .dat files
@@ -30,17 +35,16 @@ var Fallout1 = FalloutLZSS{
 
 // Decompress prepares reader
 //
-// "reader" position must be set to file offset before calling this functions
-// "unpackedSize"
-func (fallout FalloutLZSS) Decompress(reader io.Reader, unpackedSize uint32) ([]byte, error) {
-	var self = "lzss.Fallout.Decompress()"
+// `stream` position must be set to data offset before calling this functions
+func (fallout FalloutLZSS) Decompress(stream io.Reader, unpackedSize uint32) ([]byte, error) {
+	const self = "FalloutLZSS.Decompress()"
 
 	var packedSize int16
 
 	// Fallout 1 data block starts with 2 bytes describing block size and  is stored as-is or compressed,
 	// and compressed block size.
 
-	if errBlock := binary.Read(reader, binary.BigEndian, &packedSize); errBlock != nil {
+	if errBlock := binary.Read(stream, binary.BigEndian, &packedSize); errBlock != nil {
 		return nil, fmt.Errorf("%s cannot read block size: %w", self, errBlock)
 	}
 
@@ -55,8 +59,8 @@ func (fallout FalloutLZSS) Decompress(reader io.Reader, unpackedSize uint32) ([]
 
 		// Simply copy all bytes as-is, without without involving LZSS in the process
 		var output = make([]byte, unpackedSize)
-		if errBytes := binary.Read(reader, binary.BigEndian, &output); errBytes != nil {
-			return nil, fmt.Errorf("%s cannot read uncompressed block: %w", self, errBytes)
+		if _, err := stream.Read(output); err != nil {
+			return nil, fmt.Errorf("%s cannot read uncompressed block: %w", self, err)
 		}
 
 		return output, nil
@@ -66,64 +70,32 @@ func (fallout FalloutLZSS) Decompress(reader io.Reader, unpackedSize uint32) ([]
 	}
 
 	// Call
-	return fallout.LZSS.Decompress(reader, uint32(packedSize), unpackedSize)
+	return fallout.LZSS.Decompress(stream, uint32(packedSize), unpackedSize)
 }
 
-func (fallout FalloutLZSS) DecompressFile(reader io.ReadSeeker, file dat.FalloutFile) ([]byte, error) {
-	var self = "lzss.Fallout.DecompressFile()"
+func (fallout FalloutLZSS) DecompressFile(stream io.ReadSeeker, file FalloutFileLZSS) (output []byte, err error) {
+	const self = "FalloutLZSS.DecompressFile()"
 
-	if file.GetParentDir().GetParentDat().GetGame() != 1 {
-		return nil, fmt.Errorf("%s can only decompress Fallout 1 files", self)
+	// Try to detect unexpected EOF before decompression
+
+	if _, err = stream.Seek(int64((file.Offset + file.SizePacked)), io.SeekStart); err != nil {
+		return nil, err
 	}
 
-	reader.Seek(int64(file.GetOffset()+file.GetSizePacked()), io.SeekStart)
-	reader.Seek(int64(file.GetOffset()), io.SeekStart)
+	if _, err = stream.Seek(int64(file.Offset), io.SeekStart); err != nil {
+		return nil, err
+	}
 
-	if !file.GetPacked() {
+	if file.CompressMode == FalloutCompressNone {
 		// Simply copy all bytes as-is, without without involving LZSS in the process
-		var output = make([]byte, file.GetSizeReal())
-		if errBytes := binary.Read(reader, binary.BigEndian, &output); errBytes != nil {
-			return nil, fmt.Errorf("%s cannot read uncompressed block: %w", self, errBytes)
+
+		var output = make([]byte, file.SizeReal)
+		if _, err = stream.Read(output); err != nil {
+			return nil, fmt.Errorf("%s cannot read uncompressed block: %w", self, err)
 		}
 
 		return output, nil
 	}
-	return fallout.Decompress(reader, uint32(file.GetSizeReal()))
-}
 
-func (fallout FalloutLZSS) CompressMethod(reader io.ReadSeeker, file dat.FalloutFile) (output uint8, err error) {
-	if !file.GetPacked() {
-		return FalloutCompressPlain, nil
-	}
-
-	// remember stream position
-	var offset int64
-	if offset, err = reader.Seek(0, io.SeekCurrent); err != nil {
-		return 0xFF, err
-	}
-
-	// go to file block
-	if _, err = reader.Seek(int64(file.GetOffset()), io.SeekStart); err != nil {
-		return 0xFF, err
-	}
-
-	var packedSize int16
-	if err = binary.Read(reader, binary.BigEndian, &packedSize); err != nil {
-		return 0xFF, err
-	}
-
-	if packedSize < 0 {
-		output = FalloutCompressStore
-	} else if packedSize == 0 {
-		output = FalloutCompressZero
-	} else {
-		output = FalloutCompressLZSS
-	}
-
-	// restore stream position
-	if _, err = reader.Seek(offset, io.SeekStart); err != nil {
-		return 0xFF, err
-	}
-
-	return output, nil
+	return fallout.Decompress(stream, file.SizeReal)
 }
