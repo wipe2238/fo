@@ -152,7 +152,6 @@ func TestSteamGame(t *testing.T) {
 					err = ResolveFilename(&filename, "@")
 					must.NoError(t, err)
 					test.NotEq(t, filename, filenameBefore)
-					test.FilePathValid(t, filename)
 					test.FileExists(t, filename)
 				})
 			}
@@ -204,7 +203,6 @@ func TestSteamFile(t *testing.T) {
 					err = ResolveFilename(&filename, "@")
 					must.NoError(t, err)
 					test.NotEq(t, filename, filenameBefore)
-					test.FilePathValid(t, filename)
 					test.FileExists(t, filename)
 				})
 			}

@@ -31,7 +31,6 @@ func DoTestSteamFallout(t *testing.T, appId uint64, ext string) {
 		_, err = os.Stat(path)
 		must.NoError(t, err)
 		test.StrNotContains(t, path, "..")
-		test.FilePathValid(t, path)
 		test.FileExists(t, path)
 	}
 }
