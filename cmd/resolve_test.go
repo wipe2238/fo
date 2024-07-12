@@ -22,8 +22,6 @@ func TestResolveMap(t *testing.T) {
 //
 
 func TestFilenameNil(t *testing.T) {
-	t.Logf("ResolveFilename: <nil>")
-
 	var err = ResolveFilename(nil, "@")
 	test.Error(t, err)
 }
@@ -33,8 +31,6 @@ func TestFilenameNil(t *testing.T) {
 func TestPrefixEmpty(t *testing.T) {
 	var filename = "filename"
 	var filenameBefore = filename
-	t.Logf("ResolveFilename: '%s'", filename)
-
 	var err = ResolveFilename(&filename, "")
 	test.Error(t, err)
 	test.Eq(t, filename, filenameBefore)
@@ -43,8 +39,6 @@ func TestPrefixEmpty(t *testing.T) {
 func TestPrefixMissing(t *testing.T) {
 	var filename = "filename"
 	var filenameBefore = filename
-	t.Logf("ResolveFilename: '%s'", filename)
-
 	var err = ResolveFilename(&filename, "@")
 	must.NoError(t, err)
 	test.Eq(t, filename, filenameBefore)
@@ -53,8 +47,6 @@ func TestPrefixMissing(t *testing.T) {
 func TestPrefixUnknown(t *testing.T) {
 	var filename = "@unknown"
 	var filenameBefore = filename
-	t.Logf("ResolveFilename: '%s'", filename)
-
 	var err = ResolveFilename(&filename, "@")
 	test.Error(t, err)
 	test.Eq(t, filename, filenameBefore)
@@ -70,37 +62,41 @@ func TestSteamInvalidFormat(t *testing.T) {
 	)
 
 	for idx := range 2 {
-		var part = fmt.Sprintf("%d", idx+1)
+		var _, fallout, _, f = maketest.FalloutIdxData(idx)
 
-		// ResolveFilename()
+		t.Run(fallout, func(t *testing.T) {
 
-		for _, filename = range []string{
-			"@steamfallout" + part + ":MASTER.DAT",
-			"@steam:",
-			"@steam::",
-			"@steam:fallout" + part + ":",
-			"@steam::MASTER.DAT",
-		} {
-			filenameBefore = filename
-			t.Logf("ResolveFilename: '%s'", filename)
+			// ResolveFilename()
 
-			err = ResolveFilename(&filename, "@")
-			test.Error(t, err)
-			test.Eq(t, filename, filenameBefore)
-		}
+			for _, filename = range []string{
+				"@steamfallout" + f + ":MASTER.DAT",
+				"@steam:",
+				"@steam::",
+				"@steam:fallout" + f + ":",
+				"@steam::MASTER.DAT",
+			} {
+				filenameBefore = filename
+				t.Run(filename, func(t *testing.T) {
+					err = ResolveFilename(&filename, "@")
+					test.Error(t, err)
+					test.Eq(t, filename, filenameBefore)
+				})
+			}
 
-		// resolveSteam()
+			// resolveSteam()
 
-		for _, filename = range []string{
-			"@staem:fallout" + part + ":MASTER.DAT",
-		} {
-			filenameBefore = filename
-			t.Logf("ResolveFilename: '%s'", filename)
+			for _, filename = range []string{
+				"@staem:fallout" + f + ":MASTER.DAT",
+			} {
+				filenameBefore = filename
+				t.Run(filename, func(t *testing.T) {
+					err = resolveSteam(&filename, "@steam")
+					test.Error(t, err)
+					test.Eq(t, filename, filenameBefore)
+				})
+			}
 
-			err = resolveSteam(&filename, "@steam")
-			test.Error(t, err)
-			test.Eq(t, filename, filenameBefore)
-		}
+		})
 	}
 }
 
@@ -112,52 +108,56 @@ func TestSteamGame(t *testing.T) {
 	)
 
 	for idx := range 2 {
-		var part = fmt.Sprintf("%d", idx+1)
-		var appId = steam.AppId.Fallout1 + uint64((idx * 10))
+		var appId, fallout, fo, f = maketest.FalloutIdxData(idx)
 
-		// invalid
-
-		for _, game := range []string{
-			"failout" + part,
-			"fallout",
-			"Fallout",
-			"FALLOUT",
-			" fallout" + part,
-			"fallout" + part + " ",
-		} {
-			filename = fmt.Sprintf("@steam:%s:MASTER.DAT", game)
-			filenameBefore = filename
-			t.Logf("ResolveFilename: '%s'", filename)
-
-			err = ResolveFilename(&filename, "@")
-			test.Error(t, err)
-			test.Eq(t, filename, filenameBefore)
-		}
-
-		// valid
-
-		if steam.IsSteamAppInstalled(appId) || maketest.Must("fo"+part) {
+		t.Run(fallout, func(t *testing.T) {
+			// invalid
 			for _, game := range []string{
-				"fo" + part,
-				"Fo" + part,
-				"FO" + part,
-				"fallout" + part,
-				"Fallout" + part,
-				"FALLOUT" + part,
-				"FaLlOuT" + part,
-				"fAlLoUt" + part,
+				"failout" + filenameBefore,
+				"fallout",
+				"Fallout",
+				"FALLOUT",
+				" fallout" + f,
+				"fallout" + f + " ",
 			} {
 				filename = fmt.Sprintf("@steam:%s:MASTER.DAT", game)
 				filenameBefore = filename
-				t.Logf("ResolveFilename: '%s'", filename)
+				t.Run(filename, func(t *testing.T) {
 
-				err = ResolveFilename(&filename, "@")
-				must.NoError(t, err)
-				test.NotEq(t, filename, filenameBefore)
-				test.FilePathValid(t, filename)
-				test.FileExists(t, filename)
+					err = ResolveFilename(&filename, "@")
+					test.Error(t, err)
+					test.Eq(t, filename, filenameBefore)
+				})
 			}
-		}
+			// valid
+			if !steam.IsSteamAppInstalled(appId) && !maketest.Must(fo) {
+				t.Skipf("%s not installed", fallout)
+			}
+
+			for _, game := range []string{
+				"fo" + f,
+				"Fo" + f,
+				"fO" + f,
+				"FO" + f,
+				"fallout" + f,
+				"Fallout" + f,
+				"FALLOUT" + f,
+				"FaLlOuT" + f,
+				"fAlLoUt" + f,
+				"FALLout" + f,
+			} {
+				filename = fmt.Sprintf("@steam:%s:MASTER.DAT", game)
+				filenameBefore = filename
+				t.Run(filename, func(t *testing.T) {
+					err = ResolveFilename(&filename, "@")
+					must.NoError(t, err)
+					test.NotEq(t, filename, filenameBefore)
+					test.FilePathValid(t, filename)
+					test.FileExists(t, filename)
+				})
+			}
+
+		})
 	}
 }
 
@@ -169,41 +169,46 @@ func TestSteamFile(t *testing.T) {
 	)
 
 	for idx := range 2 {
+		var appId, fallout, fo, f = maketest.FalloutIdxData(idx)
 
-		// invalid
+		t.Run(fallout, func(t *testing.T) {
+			// invalid
 
-		for _, file := range []string{
-			"MASTER.DED",
-		} {
-			filename = fmt.Sprintf("@steam:fallout%d:%s", idx+1, file)
-			filenameBefore = filename
-			t.Logf("ResolveFilename: '%s'", filename)
+			for _, file := range []string{
+				"MASTER.DED",
+			} {
+				filename = fmt.Sprintf("@steam:fallout%s:%s", f, file)
+				filenameBefore = filename
+				t.Run(filename, func(t *testing.T) {
+					err = ResolveFilename(&filename, "@")
+					test.Error(t, err)
+					test.Eq(t, filename, filenameBefore)
+				})
+			}
 
-			err = ResolveFilename(&filename, "@")
-			test.Error(t, err)
-			test.Eq(t, filename, filenameBefore)
-		}
-	}
+			if !steam.IsSteamAppInstalled(appId) && !maketest.Must(fo) {
+				t.Skipf("%s not installed", fallout)
+			}
 
-	if steam.IsSteamAppInstalled(steam.AppId.Fallout1) || maketest.Must("fo1") {
+			// valid
 
-		// valid
+			for _, filename := range []string{
+				"MASTER.DAT",
+				"CRITTER.DAT",
+				"Manual/MANUAL.PDF",
+				"Manual/fallout_refcard.pdf",
+			} {
+				filename = fmt.Sprintf("@steam:fallout%s:%s", f, filename)
+				filenameBefore = filename
+				t.Run(filename, func(t *testing.T) {
+					err = ResolveFilename(&filename, "@")
+					must.NoError(t, err)
+					test.NotEq(t, filename, filenameBefore)
+					test.FilePathValid(t, filename)
+					test.FileExists(t, filename)
+				})
+			}
+		})
 
-		for _, filename := range []string{
-			"MASTER.DAT",
-			"CRITTER.DAT",
-			"Manual/MANUAL.PDF",
-			"Manual/fallout_refcard.pdf",
-		} {
-			filename = fmt.Sprintf("@steam:fallout%d:%s", 1, filename)
-			filenameBefore = filename
-			t.Logf("ResolveFilename: '%s'", filename)
-
-			err = ResolveFilename(&filename, "@")
-			must.NoError(t, err)
-			test.NotEq(t, filename, filenameBefore)
-			test.FilePathValid(t, filename)
-			test.FileExists(t, filename)
-		}
 	}
 }

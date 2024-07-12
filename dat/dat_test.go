@@ -105,10 +105,8 @@ func DoRunTB(tb testing.TB, name string, funcTB func(testing.TB)) bool {
 		tbAsB, okB = tb.(*testing.B)
 	)
 
-	if !okT && !okB {
-		panic("Both okT and okB are false.... which is not ok")
-	} else if okT && okB {
-		panic("Both okT and okB are true.... which is not ok")
+	if (!okT && !okB) || (okT && okB) {
+		panic(fmt.Sprintf("Both okT and okB are %t.... which is not ok", okT))
 	} else if okT {
 		return tbAsT.Run(name, func(t *testing.T) { funcTB(t) })
 	} else if okB {
@@ -120,9 +118,9 @@ func DoRunTB(tb testing.TB, name string, funcTB func(testing.TB)) bool {
 
 // DoDatOpen opens a .dat file; currently requires to specify from which game file comes from
 //
-// Note: Calling functions is responsible for closing returned *os.File
+// Note: Calling function is responsible for closing os.File
 func DoDatOpen(filename string, fo int) (osFile *os.File, dat FalloutDat, err error) {
-	var fn = [2]func(io.Reader, *FalloutDatOptions) (FalloutDat, error){Fallout1, Fallout2}
+	var fn = [2]func(io.Reader) (FalloutDat, error){Fallout1, Fallout2}
 
 	if osFile, err = os.Open(filename); err != nil {
 		return nil, nil, err
@@ -133,7 +131,7 @@ func DoDatOpen(filename string, fo int) (osFile *os.File, dat FalloutDat, err er
 		return nil, nil, fmt.Errorf("DoDatOpen(%s) fo < 1 || fo > 2", filename)
 	}
 
-	if dat, err = fn[fo-1](osFile, DefaultOptions()); err != nil {
+	if dat, err = fn[fo-1](osFile); err != nil {
 		osFile.Close()
 		return nil, nil, err
 	}
@@ -152,12 +150,12 @@ func DoDatFile(tb testing.TB, osFile *os.File, dat FalloutDat,
 	}
 
 	for _, dir := range dat.GetDirs() {
-		DoRunTB(tb, dir.GetPath(), func(tb1 testing.TB) {
+		DoRunTB(tb, dir.GetPath(), func(tb testing.TB) {
 			if callbackDir != nil {
-				callbackDir(tb1, osFile, dir)
+				callbackDir(tb, osFile, dir)
 			}
 			for _, file := range dir.GetFiles() {
-				DoRunTB(tb1, file.GetName(), func(tb2 testing.TB) {
+				DoRunTB(tb, file.GetName(), func(tb2 testing.TB) {
 					if callbackFile != nil {
 						callbackFile(tb2, osFile, file)
 					}
@@ -171,7 +169,7 @@ func DoDatFile(tb testing.TB, osFile *os.File, dat FalloutDat,
 
 func TestFunc(t *testing.T) {
 	var err error
-	var fn = [2]func(io.Reader, *FalloutDatOptions) (FalloutDat, error){Fallout1, Fallout2}
+	var fn = [2]func(io.Reader) (FalloutDat, error){Fallout1, Fallout2}
 
 	for idx := range 2 {
 		var appId, fallout, fo, _ = maketest.FalloutIdxData(idx)
@@ -194,32 +192,32 @@ func TestFunc(t *testing.T) {
 					defer osFile.Close()
 
 					var dat FalloutDat
-					dat, err = fn[idx](osFile, DefaultOptions())
+					dat, err = fn[idx](osFile)
 					must.NoError(t, err)
 
-					test.Eq(t, int(dat.GetGame()), idx+1)
+					test.EqOp(t, int(dat.GetGame()), idx+1)
 				})
 			}
 		})
 	}
 }
 
-func TestDbg(t *testing.T) {
+func TestDbg(testingT *testing.T) {
 	var dbg = func(tb testing.TB, dbgMap dbg.Map) {
-		DoRunTB(tb, "DbgMap", func(tb0 testing.TB) {
-			must.NotNil(tb0, dbgMap)
-			test.MapNotContainsKey(tb0, dbgMap, "")
+		DoRunTB(tb, "DbgMap", func(tb testing.TB) {
+			must.NotNil(tb, dbgMap)
+			test.MapNotContainsKey(tb, dbgMap, "")
 
 			dbgMap.Dump("", "", func(key string, val any, left string, right string) {
-				test.NotEq(tb0, key, "")
-				test.NotNil(tb0, val)
-				test.NotEq(tb0, left, "")
-				test.NotEq(tb0, right, "")
+				test.NotEq(tb, key, "")
+				test.NotNil(tb, val)
+				test.NotEq(tb, left, "")
+				test.NotEq(tb, right, "")
 			})
 		})
 	}
 
-	DoDat(t,
+	DoDat(testingT,
 		func(tb testing.TB, _ io.ReadSeeker, dat FalloutDat) {
 			dat.FillDbg()
 			dbg(tb, dat.GetDbg())
@@ -233,48 +231,56 @@ func TestDbg(t *testing.T) {
 	)
 }
 
-func TestImpl(t *testing.T) {
-	DoDat(t,
-		func(t testing.TB, _ io.ReadSeeker, dat FalloutDat) {
+func TestImpl(testingT *testing.T) {
+	DoDat(testingT,
+		func(tb testing.TB, _ io.ReadSeeker, dat FalloutDat) {
 			var (
 				dbg  = dat.GetDbg()
 				dirs = dat.GetDirs()
 				game = dat.GetGame()
 			)
-			test.NotNil(t, dbg)
+			test.NotNil(tb, dbg)
 
-			test.NotNil(t, dirs)
+			test.NotNil(tb, dirs)
 
-			must.GreaterEq(t, 1, game)
-			must.LessEq(t, 2, game)
+			must.GreaterEq(tb, 1, game)
+			must.LessEq(tb, 2, game)
 
 		},
-		func(t testing.TB, _ io.ReadSeeker, dir FalloutDir) {
+		func(tb testing.TB, _ io.ReadSeeker, dir FalloutDir) {
 			var (
+				parentDat = dir.GetParentDat()
+
 				dbg    = dir.GetDbg()
 				files  = dir.GetFiles()
 				name   = dir.GetName()
 				parent = dir.GetParentDat()
 				path   = dir.GetPath()
 			)
-			test.NotNil(t, dbg)
+			// always first
 
-			test.NotNil(t, files)
+			must.NotNil(tb, parentDat)
 
-			must.StrNotEqFold(t, name, "")
-			test.StrNotContains(t, name, "/")
-			test.StrNotContains(t, name, `\`)
+			//
 
-			test.NotNil(t, parent)
+			test.NotNil(tb, dbg)
 
-			must.StrNotEqFold(t, path, "")
-			test.StrNotContains(t, path, `\`)
-			test.StrNotHasSuffix(t, path, "/")
+			test.NotNil(tb, files)
+
+			must.StrNotEqFold(tb, name, "")
+			test.StrNotContains(tb, name, "/")
+			test.StrNotContains(tb, name, `\`)
+
+			test.NotNil(tb, parent)
+
+			must.StrNotEqFold(tb, path, "")
+			test.StrNotContains(tb, path, `\`)
+			test.StrNotHasSuffix(tb, path, "/")
 			if path != "." {
-				test.StrNotHasPrefix(t, ".", path)
+				test.StrNotHasPrefix(tb, ".", path)
 			}
 		},
-		func(t testing.TB, _ io.ReadSeeker, file FalloutFile) {
+		func(tb testing.TB, _ io.ReadSeeker, file FalloutFile) {
 			var (
 				parentDat FalloutDat
 				parentDir = file.GetParentDir()
@@ -288,42 +294,40 @@ func TestImpl(t *testing.T) {
 				sizeReal     = file.GetSizeReal()
 			)
 
-			if compressMode == lzss.FalloutCompressNone {
-				test.Eq(t, sizeReal, sizePacked)
-			} else if compressMode == lzss.FalloutCompressLZSS {
-				test.Less(t, sizeReal, sizePacked)
-			} else {
-				// detect lzss.FalloutCompressStore
-				t.Fatalf("Unknown compressMode 0x%X %d", compressMode, compressMode)
-			}
-
 			// always first
 
-			must.NotNil(t, parentDir)
+			must.NotNil(tb, parentDir)
 			parentDat = parentDir.GetParentDat()
-			must.NotNil(t, parentDat)
+			must.NotNil(tb, parentDat)
+
+			if compressMode == lzss.FalloutCompressNone {
+				test.EqOp(tb, sizeReal, sizePacked)
+			} else if compressMode == lzss.FalloutCompressLZSS {
+				test.Less(tb, sizeReal, sizePacked)
+			} else {
+				// detect lzss.FalloutCompressStore
+				tb.Fatalf("Unknown compressMode 0x%X %d", compressMode, compressMode)
+			}
 
 			//
 
-			test.NotNil(t, dbg)
+			test.NotNil(tb, dbg)
 
-			must.StrNotEqFold(t, name, "")
-			test.StrNotContains(t, name, "/")
-			test.StrNotContains(t, name, `\`)
+			must.StrNotEqFold(tb, name, "")
+			test.StrNotContains(tb, name, "/")
+			test.StrNotContains(tb, name, `\`)
 
-			// HACK dbg.Map in tests
-			var minOffset = parentDat.GetDbg()["Offset:3:FilesContent"].(int64)
-			test.GreaterEq(t, minOffset, offset)
+			// HACK: dbg.Map in tests
+			test.GreaterEq(tb, parentDat.GetDbg()["Offset:3:FilesContent"].(int64), offset)
 
-			must.StrNotEqFold(t, path, "")
-			test.StrNotContains(t, path, `\`)
-			test.StrHasPrefix(t, parentDir.GetPath(), path)
-			test.Eq(t, path, parentDir.GetPath()+"/"+name)
+			must.StrNotEqFold(tb, path, "")
+			test.StrNotContains(tb, path, `\`)
+			test.StrHasPrefix(tb, parentDir.GetPath(), path)
+			test.EqOp(tb, path, parentDir.GetPath()+"/"+name)
 
 			if sizePacked == 0 {
-				test.EqOp(t, sizeReal, sizePacked)
+				test.EqOp(tb, sizeReal, sizePacked)
 			}
-
 		},
 	)
 }
