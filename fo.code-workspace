@@ -7,6 +7,7 @@
     "settings": {
         "files.eol": "\n",
         "files.readonlyInclude": {
+            "**/testdata/**": true,
             "bin/**": true
         },
         "editor.formatOnType": true,
