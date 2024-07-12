@@ -40,60 +40,40 @@ func argList(arg *cobra.Command, args []string) (err error) {
 	// TODO detect DAT1/DAT2 automagically
 
 	var datFile dat.FalloutDat
-	if datFile, err = dat.Fallout1(osFile, dat.DefaultOptions()); err != nil {
-		return err
+	if datFile, err = dat.Fallout1(osFile); err != nil {
+		return
 	}
 
-	return doList(arg, osFile, datFile)
+	return doList(arg, datFile)
 }
 
-// XXX indexes
-func doList(_ *cobra.Command, osFile *os.File, datFile dat.FalloutDat) (err error) {
-	var (
-		dirs  []dat.FalloutDir
-		files []dat.FalloutFile
-	)
+func doList(_ *cobra.Command, datFile dat.FalloutDat) (err error) {
+	for _, dir := range datFile.GetDirs() {
+		fmt.Printf("%s\n", dir.GetPath())
 
-	if dirs, err = datFile.GetDirs(); err != nil {
-		return err
-	}
-
-	for idxDir, dir := range dirs {
-		if files, err = dir.GetFiles(); err != nil {
-			fmt.Println("ERROR: @dat.GetFiles("+dir.GetPath()+")", err)
-			continue
-		}
-
-		fmt.Printf("%-55s [%4d]\n", dir.GetPath(), idxDir)
-
-		for idxFile, file := range files {
+		for _, file := range dir.GetFiles() {
 			var (
-				pack         string
-				packCompress uint8
-				save         int32  = 0
-				perc         uint64 = 100
+				pack string
+				save int64
+				perc uint64 = 100
 			)
 
-			if packCompress, err = lzss.Fallout1.CompressMethod(osFile, file); err == nil {
-				switch packCompress {
-				case lzss.FalloutCompressZero:
-					pack = "zero"
-				case lzss.FalloutCompressPlain:
-					pack = "plain"
-				case lzss.FalloutCompressStore:
-					pack = "store"
-				case lzss.FalloutCompressLZSS:
-					pack = "lzss"
-				}
-			} else {
-				fmt.Println("ERROR: list("+dir.GetPath()+")", err)
+			switch file.GetCompressMode() {
+			case lzss.FalloutCompressStore:
+				pack = "store"
+			case lzss.FalloutCompressNone:
+				pack = "none"
+			case lzss.FalloutCompressLZSS:
+				pack = "lzss"
+			default:
+				pack = fmt.Sprintf("(%d)", file.GetCompressMode())
 			}
 
-			if file.GetPacked() {
+			if file.GetSizeReal() > 0 {
 				save = file.GetSizeReal() - file.GetSizePacked()
 				perc = (uint64(file.GetSizePacked()) * 100) / uint64(file.GetSizeReal())
 			}
-			fmt.Printf("  %-12s %5s %-10s %8d %8d %8d %3d%% [%4d][%4d]\n", file.GetName(), pack, fmt.Sprintf("0x%X", file.GetOffset()), file.GetSizeReal(), file.GetSizePacked(), save, perc, idxDir, idxFile)
+			fmt.Printf("  %-12s %5s %-10s %8d %8d %8d %3d%%\n", file.GetName(), pack, fmt.Sprintf("0x%X", file.GetOffset()), file.GetSizeReal(), file.GetSizePacked(), save, perc)
 		}
 	}
 
