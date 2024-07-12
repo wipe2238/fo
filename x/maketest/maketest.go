@@ -1,16 +1,16 @@
 package maketest
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
 
-// Must returns true if file "<repo dir>/maketest.<ext>" exists
-func Must(ext string) bool {
+func RepoDir() (string, bool) {
 	var tmp, err = os.Getwd()
 
 	if err != nil {
-		return false
+		return "", false
 	}
 
 	// search for main repo directory, up to 10 parents
@@ -21,13 +21,30 @@ func Must(ext string) bool {
 		// if workspace file is found, it's main repo dir
 		_, err = os.Stat(filepath.Join(dir, "fo.code-workspace"))
 		if err == nil {
-			// if maketest.<ext> is found, test cannot be skipped
-			_, err = os.Stat(filepath.Join(dir, "maketest."+ext))
-			return err == nil
+			return dir, true
 		} else {
 			tmp = dir
 		}
 	}
 
+	return "", false
+}
+
+// Must returns true if file "<repo dir>/maketest.<ext>" exists
+func Must(ext string) bool {
+	if dir, found := RepoDir(); found {
+		var _, err = os.Stat(filepath.Join(dir, "maketest."+ext))
+		return err == nil
+	}
+
 	return false
+}
+
+func FalloutIdxData(idx int) (appId uint64, nameLong string, nameShort string, n string) {
+	appId = 38400 + uint64((idx * 10))
+	nameLong = fmt.Sprintf("Fallout%d", idx+1)
+	nameShort = fmt.Sprintf("fo%d", idx+1)
+	n = fmt.Sprintf("%d", idx+1)
+
+	return appId, nameLong, nameShort, n
 }
