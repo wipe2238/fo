@@ -2,240 +2,178 @@ package dat
 
 import (
 	"io"
+	"path"
 	"strings"
+
+	"github.com/wipe2238/fo/compress/lzss"
+	"github.com/wipe2238/fo/x/dbg"
 )
 
 //
-// FalloutFile implementation
+// FalloutDat implementation
 //
 
-// GetParentDir implements FalloutFile
-func (file *falloutFile_1) GetParentDir() FalloutDir {
-	return file.parentDir
+// GetGame implements FalloutDat
+func (dat *falloutDat_1) GetGame() byte {
+	return 1
 }
 
-// GetName implements FalloutFile
-func (file *falloutFile_1) GetName() string {
-	return file.Name
-}
+// GetDirs implements FalloutDat
+func (dat *falloutDat_1) GetDirs() (dirs []FalloutDir) {
+	dirs = make([]FalloutDir, len(dat.Dirs))
 
-func (file *falloutFile_1) GetPath() string {
-	return strings.ReplaceAll(file.GetParentDir().GetPath()+"/"+file.GetName(), "\\", "/")
-}
-
-// GetPacked implements FalloutFile
-func (file *falloutFile_1) GetPacked() bool {
-	return file.Packed
-}
-
-// GetOffset implements FalloutFile
-func (file *falloutFile_1) GetOffset() int32 {
-	return file.Offset
-}
-
-// GetOffset implements FalloutFile
-func (file *falloutFile_1) GetSizeReal() int32 {
-	return file.SizeReal
-}
-
-// GetOffset implements FalloutFile
-func (file *falloutFile_1) GetSizePacked() int32 {
-	return file.SizePacked
-}
-
-// GetBytesReal implements FalloutFile
-//
-// TODO replace with `compress/lzss“
-func (file *falloutFile_1) GetBytesReal(stream io.ReadSeeker) (out []byte, err error) {
-	// NOTE: for now, everything lives in single function, except read*()
-	//       maybe it should be moved somewhere else and split when it's proven to work correctly
-
-	if !file.GetPacked() {
-		return file.GetBytesPacked(stream)
+	for idx, dir := range dat.Dirs {
+		dirs[idx] = dir
 	}
 
-	// seekFile() sets stream position to file offset, plus some additional checks
-	// called early to not waste time initializing stuff for stream which can't be used
-	if err = seekFile(stream, file); err != nil {
-		return nil, err
-	}
+	return dirs
+}
 
-	// using falloutDat_1 for read*() functions
-	var dat = file.GetParentDir().GetParentDat().(*falloutDat_1)
+func (dat *falloutDat_1) GetDbg() dbg.Map {
+	return dat.Dbg
+}
 
-	//
-	// LZSS decompression
-	// Based on Ghosthack's UndatUI
-	//
-	// https://github.com/ghost2238/
-	// https://github.com/rotators/Fo1in2/blob/master/Tools/UndatUI/src/dat.cs
-	//
-
-	// constants and variables
-
+func (dat *falloutDat_1) FillDbg() {
 	const (
-		DICT_SIZE int16 = 4096
-		MIN_MATCH int16 = 3
-		MAX_MATCH int16 = 18
+		strHeader      = "DAT1:1:Header"
+		strContent     = "Size:FilesContent"
+		strContentMean = "Size:FilesContentMean"
+		strAll         = ":All"
+		strCount       = ":Count"
+		strReal        = ":Real"
+		strPacked      = ":Packed"
+		strFilesCount  = "Stats:FilesCount"
 	)
 
-	var (
-		N  int16 // number of bytes to read
-		NR int16 // bytes read from last block header
-		DO int16 // dictionary offset - for reading
-		DI int16 // dictionary index - for writing
-		OI int32 // output index, used for writing to the output array
-		L  int32 // match length
-		FL byte  // @Flags indicating the compression status of up to 8 next bytes
-
-		NRx int16 // bytes read from stream which don't increase NR
-	)
-
-	// output arrays
-
-	out = make([]byte, file.GetSizeReal())
-	var dictionary = make([]byte, DICT_SIZE)
-
-	var lastByte = func() bool {
-		return int32((NR + NRx)) == file.GetSizePacked()
-	}
-
-	var readByte = func() (data byte, err error) {
-		NR++
-		if data, err = dat.readByte(); err != nil {
-			return 0, err
+	var contentAdd = func(file *falloutFile_1, dir *falloutDir_1, dat *falloutDat_1) {
+		var ext = path.Ext(file.Name)
+		if ext == "" {
+			ext = ".?"
 		}
 
-		return data, nil
-	}
+		var (
+			prefixOne     = strContent + ":" + ext
+			prefixMeanOne = strContentMean + ":" + ext
+		)
 
-	var writeByte = func(b byte) {
-		out[OI] = b
-		OI++
-		dictionary[(DI % DICT_SIZE)] = b
-		DI++
-	}
+		var update = func(dbgMap dbg.Map, prefixNorm string, prefixMean string) {
+			var count, real, packed int64
 
-	var readBlock = func() (err error) {
-		NR = 0
-		if N < 0 {
-			panic("TODO: n < 0 -> uncompressed block")
-		} else { // n > 0 only; n == 0 must be handled in caller
-			// clear dictionary
-			for idx := range dictionary {
-				dictionary[idx] = 0x20 // ASCII ' '
+			if val, ok := dbgMap[(prefixNorm + strCount)].(int64); ok {
+				count = val
 			}
-			DI = DICT_SIZE - MAX_MATCH
 
-			// @Flag
-			for {
-				if NR >= N || lastByte() {
-					return nil // Go to @Start
-				}
+			if val, ok := dbgMap[(prefixNorm + strReal)].(int64); ok {
+				real = val
+			}
 
-				// Read flag byte
-				if FL, err = readByte(); err != nil {
-					return err
-				}
+			if val, ok := dbgMap[(prefixNorm + strPacked)].(int64); ok {
+				packed = val
+			}
 
-				if NR >= N || lastByte() {
-					return nil // Go to @Start
-				}
+			count++
+			real += file.GetSizeReal()
+			packed += file.GetSizePacked()
 
-				for range 8 { // XXX magic number
-					var tmp byte
+			dbgMap[(prefixNorm + strCount)] = count
+			dbgMap[(prefixNorm + strReal)] = real
+			dbgMap[(prefixNorm + strPacked)] = packed
 
-					// @FLodd, normal byte
-					if (FL % 2) == 1 {
-						// Read byte from stream and put it in the output buffer and dictionary
-
-						if tmp, err = readByte(); err == nil {
-							writeByte(tmp)
-						} else {
-							return err
-						}
-
-						if NR >= N {
-							return nil
-						}
-						// @FLeven, encoded dictionary offset
-					} else {
-						if NR >= N {
-							return nil
-						}
-
-						// Read dictionary offset byte
-						if tmp, err = readByte(); err == nil {
-							DO = int16(tmp)
-						} else {
-							return err
-						}
-
-						if NR >= N {
-							return nil
-						}
-
-						// LB, length byte
-						if tmp, err = readByte(); err != nil {
-							return err
-						}
-
-						DO |= int16((tmp & 0xF0)) << 4             // Prepend the high-nibble (first 4 bits) from LB to DO
-						L = int32(int16((tmp & 0x0F)) + MIN_MATCH) // and remove it from LB and add MIN_MATCH
-
-						for range L {
-							// Read a byte from the dictionary at DO, increment index and write to output and dictionary at DI
-							writeByte(dictionary[(DO % DICT_SIZE)])
-							DO++
-						}
-					}
-
-					// @FlagNext
-					FL = byte(FL >> 1)
-					if lastByte() {
-						return nil
-					}
-				}
-
-			} // loop
+			dbgMap[(prefixMean + strReal)] = real / count
+			dbgMap[(prefixMean + strPacked)] = packed / count
 		}
+
+		for _, dbgMap := range []dbg.Map{dir.Dbg, dat.Dbg} {
+			update(dbgMap, prefixOne, prefixMeanOne)
+			update(dbgMap, (strContent + strAll), (strContentMean + strAll))
+		}
+		//update(dat.Dbg, prefixOne, prefixMeanOne)
+		//update(dat.Dbg, (strContent + strAll), (strContentMean + strAll))
 	}
 
-	// func Decompress() (out []byte, err error)
-	for !lastByte() {
-		// @Start
-		if N, err = dat.readInt16(); err == nil {
-			NRx = 2 // sizeof(int16), used by lastByte()
+	var contentCleanup = func(dbgMap dbg.Map) {
+		var keys = dbgMap.Keys((strContent + ":."))
+		if len(keys) == 3 {
+			// there's only one file extension in directory
+
+			// delete `Size:FilesContent:.EXT:Count`
+			// duplicate of `DAT1:0:FilesCount`
+			delete(dbgMap, keys[0])
+
+			// delete `Size:FilesContent:All:*` and `Size:FilesContentMean:All:*`
+			// duplicates of `Size:FilesContent:.EXT:*`
+			for _, prefix := range []string{strContent, strContentMean} {
+				for _, key := range dbgMap.Keys(prefix + strAll) {
+					delete(dbgMap, key)
+				}
+			}
 		} else {
-			return nil, err
-		}
+			// there's at least two different file extensions in directory
 
-		if N == 0 {
-			break
-		} else if err = readBlock(); err != nil {
-			return nil, err
-		}
-	}
+			for _, keyOld := range keys {
+				// `Size:FilesContent:.EXT:Count` (int64) -> `Stats:FilesCount:.EXT` (uint32)
+				if strings.HasSuffix(keyOld, strCount) {
+					var key = strings.Replace(keyOld, strContent, strFilesCount, 1)
+					key, _ = strings.CutSuffix(key, strCount)
 
-	return out, nil
-}
+					dbgMap[key] = uint32(dbgMap[keyOld].(int64))
+					delete(dbgMap, keyOld)
+				}
+			}
 
-func (file *falloutFile_1) GetBytesPacked(stream io.ReadSeeker) (out []byte, err error) {
-	// seekFile() sets stream position to file offset, plus some additional checks
-	// called early to not waste time initializing stuff for stream which can't be used
-	if err = seekFile(stream, file); err != nil {
-		return nil, err
-	}
-
-	out = make([]byte, file.GetSizePacked())
-
-	for idx := range out {
-		if out[idx], err = file.GetParentDir().GetParentDat().(*falloutDat_1).readUInt8(); err != nil {
-			return nil, err
+			// delete `Size::FilesContent:All:Count`
+			// duplicate of `DAT1:0:FilesCount`
+			delete(dbgMap, (strContent + strAll + strCount))
 		}
 	}
 
-	return out, nil
+	dat.Dbg["DAT1:0:DirsCount"] = dat.DirsCount
+	dat.Dbg[strHeader] = dat.Header
+
+	if dat.Dbg.KeysMaxLen("Offset:") > 0 {
+		dat.Dbg.AddSize("Size:Tree:Info", "Offset:0:Info", "Offset:1:DirsNames")
+		dat.Dbg.AddSize("Size:Tree:DirsNames", "Offset:1:DirsNames", "Offset:2:DirsData")
+		dat.Dbg.AddSize("Size:Tree:DirsData", "Offset:2:DirsData", "Offset:3:FilesContent")
+		dat.Dbg.AddSize("Size:Tree:Total", "Offset:0:Info", "Offset:3:FilesContent")
+	}
+
+	for idxDir, dir := range dat.Dirs {
+		dir.Dbg["DAT1:0:FilesCount"] = dir.FilesCount
+		dir.Dbg[strHeader] = dir.Header
+
+		dir.Dbg["Idx"] = uint16(idxDir)
+
+		if dir.Dbg.KeysMaxLen("Offset:") > 0 {
+			dir.Dbg.AddSize("Size:DirEntry:Info", "Offset:0:Info", "Offset:1:Files")
+			dir.Dbg.AddSize("Size:DirEntry:FilesData", "Offset:1:Files", "Offset:2:End")
+			dir.Dbg.AddSize("Size:DirEntry:Total", "Offset:0:Info", "Offset:2:End")
+		}
+
+		for idxFile, file := range dir.Files {
+			file.Dbg["DAT1:1:Name"] = file.Name
+			file.Dbg["DAT1:2:CompressMode"] = file.CompressMode
+			file.Dbg["DAT1:3:Offset"] = file.Offset
+			file.Dbg["DAT1:4:SizeReal"] = file.SizeReal
+			file.Dbg["DAT1:5:SizePacked"] = file.SizePacked
+
+			if file.Dbg.KeysMaxLen("Offset:") > 0 {
+				file.Dbg.AddSize("Size:FileEntry:Name", "Offset:0:Name", "Offset:1:Info")
+				file.Dbg.AddSize("Size:FileEntry:Info", "Offset:1:Info", "Offset:2:End")
+				file.Dbg.AddSize("Size:FileEntry:Total", "Offset:0:Name", "Offset:2:End")
+			}
+
+			//
+
+			contentAdd(file, dir, dat)
+
+			file.Dbg["Idx:Dir"] = uint16(idxFile)
+			file.Dbg["Idx:Dat"] = uint16(dat.Dbg[strContent+strAll+strCount].(int64) - 1)
+		}
+
+		contentCleanup(dir.Dbg)
+	}
+
+	contentCleanup(dat.Dbg)
 }
 
 //
@@ -260,42 +198,97 @@ func (dir *falloutDir_1) GetPath() string {
 }
 
 // GetFiles implements FalloutDir
-func (dir *falloutDir_1) GetFiles() (files []FalloutFile, err error) {
-	files = make([]FalloutFile, 0)
+func (dir *falloutDir_1) GetFiles() (files []FalloutFile) {
+	files = make([]FalloutFile, len(dir.Files))
 
-	for idx := range dir.Files {
-		files = append(files, dir.Files[idx])
+	for idx, file := range dir.Files {
+		files[idx] = file
 	}
+	return files
+}
 
-	return files, nil
+func (dir *falloutDir_1) GetDbg() dbg.Map {
+	return dir.Dbg
 }
 
 //
-// FalloutDat implementation
+// FalloutFile implementation
 //
 
-// Reset implements FalloutDat
-func (dat *falloutDat_1) Reset() {
-	dat.stream = nil
-
-	clear(dat.Header)
-	clear(dat.Dirs)
-
-	dat.DirsCount = 0
+// GetParentDir implements FalloutFile
+func (file *falloutFile_1) GetParentDir() FalloutDir {
+	return file.parentDir
 }
 
-// GetGame implements FalloutDat
-func (dat *falloutDat_1) GetGame() byte {
-	return 1
+// GetName implements FalloutFile
+func (file *falloutFile_1) GetName() string {
+	return file.Name
 }
 
-// GetDirs implements FalloutDat
-func (dat *falloutDat_1) GetDirs() (dirs []FalloutDir, err error) {
-	dirs = make([]FalloutDir, len(dat.Dirs))
+func (file *falloutFile_1) GetPath() string {
+	return strings.ReplaceAll(file.GetParentDir().GetPath()+"/"+file.GetName(), "\\", "/")
+}
 
-	for idx, dir := range dat.Dirs {
-		dirs[idx] = dir //append(dirs, dir) //dat.Dirs[idx])
+// GetOffset implements FalloutFile
+func (file *falloutFile_1) GetOffset() int64 {
+	return int64(file.Offset)
+}
+
+// GetCompressMode implements FalloutFile
+func (file *falloutFile_1) GetCompressMode() uint32 {
+	return file.CompressMode
+}
+
+// GetOffset implements FalloutFile
+func (file *falloutFile_1) GetSizeReal() int64 {
+	return int64(file.SizeReal)
+}
+
+// GetSizePacked returns size of file block
+//
+// GetSizePacked implements FalloutFile
+func (file *falloutFile_1) GetSizePacked() int64 {
+	if file.SizePacked == 0 {
+		return file.GetSizeReal()
 	}
 
-	return dirs, nil
+	return int64(file.SizePacked)
+}
+
+// GetFileLZSS returns converted file data, which can be passed to `lzss.FalloutLZSS“ functions
+func (file *falloutFile_1) getFileLZSS() lzss.FalloutFileLZSS {
+	return lzss.FalloutFileLZSS{
+		Offset:       file.Offset,
+		CompressMode: file.CompressMode,
+		SizeReal:     file.SizeReal,
+		SizePacked:   file.SizePacked,
+	}
+}
+
+// GetBytesReal implements FalloutFile
+func (file *falloutFile_1) GetBytesReal(stream io.ReadSeeker) (out []byte, err error) {
+	if out, err = lzss.Fallout1.DecompressFile(stream, file.getFileLZSS()); err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
+func (file *falloutFile_1) GetBytesPacked(stream io.ReadSeeker) (out []byte, err error) {
+	// seekFile() sets stream position to file offset, plus some additional checks
+	// called early to not waste time initializing stuff for stream which can't be used
+	if err = seekFile(stream, file); err != nil {
+		return nil, err
+	}
+
+	out = make([]byte, file.GetSizePacked())
+	if _, err = stream.Read(out); err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
+func (file *falloutFile_1) GetDbg() dbg.Map {
+	return file.Dbg
 }

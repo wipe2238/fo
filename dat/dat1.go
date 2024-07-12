@@ -4,58 +4,55 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+
+	"github.com/wipe2238/fo/compress/lzss"
+	"github.com/wipe2238/fo/x/dbg"
 )
 
 type falloutFile_1 struct {
-	Name string
+	Name         string // DAT1: len byte, name [len]byte
+	CompressMode uint32 // DAT1
+	Offset       uint32 // DAT1
+	SizeReal     uint32 // DAT1
+	SizePacked   uint32 // DAT1
 
-	PackMethod int32
-	Offset     int32
-	SizeReal   int32
-	SizePacked int32
-
-	//
-
+	Dbg       dbg.Map
 	parentDir *falloutDir_1
-	Packed    bool
 }
 
 type falloutDir_1 struct {
-	FilesCount int32
-	Unknown    []int32
+	Path       string   // DAT1: len byte, name [len]byte
+	FilesCount int32    // DAT1
+	Header     [3]int32 // DAT1
 
-	//
-
-	parentDat *falloutDat_1
-	Path      string
 	Files     []*falloutFile_1
+	Dbg       dbg.Map
+	parentDat *falloutDat_1
 }
 
 type falloutDat_1 struct {
-	DirsCount int32
-	Header    []int32
+	DirsCount int32    // DAT1
+	Header    [3]int32 // DAT1
 
-	//
-
-	stream io.Reader // TODO remove io.Reader
-	Dirs   []*falloutDir_1
+	Dirs []*falloutDir_1
+	Dbg  dbg.Map
 }
 
-// readStream implements FalloutDat
-func (dat *falloutDat_1) readStream(stream io.Reader, options *FalloutDatOptions) (err error) {
-	dat.Reset()
-	dat.stream = stream
-
-	if dat.DirsCount, err = dat.readInt32(); err != nil {
+// readDat implements FalloutDat
+func (dat *falloutDat_1) readDat(stream io.Reader) (err error) {
+	dat.Dbg = make(dbg.Map)
+	dat.Dbg.AddOffset("Offset:0:Info", stream)
+	if err = binary.Read(stream, binary.BigEndian, &dat.DirsCount); err != nil {
 		return err
 	}
 
-	if dat.Header, err = dat.readInt32array(Const().HeaderLen); err != nil {
-		return err
+	for idx := range dat.Header {
+		if err = binary.Read(stream, binary.BigEndian, &dat.Header[idx]); err != nil {
+			return err
+		}
 	}
 
 	// header validation
-
 	switch dat.Header[0] {
 	// known values
 	case 0x5E: // master.dat
@@ -79,158 +76,126 @@ func (dat *falloutDat_1) readStream(stream io.Reader, options *FalloutDatOptions
 	// directories list
 	//
 
+	dat.Dbg.AddOffset("Offset:1:DirsNames", stream)
+
 	dat.Dirs = make([]*falloutDir_1, dat.DirsCount)
 
 	for idx := range dat.Dirs {
 		dat.Dirs[idx] = new(falloutDir_1)
+		dat.Dirs[idx].Dbg = make(dbg.Map)
 		dat.Dirs[idx].parentDat = dat
 
-		if dat.Dirs[idx].Path, err = dat.readString(); err != nil {
+		if dat.Dirs[idx].Path, err = dat.readString(stream); err != nil {
 			return err
 		}
 
-		// TODO? cache dir.Name
+		// TODO:? cache dir.Name
 	}
+
 	//
 	// directories files
 	//
+
+	dat.Dbg.AddOffset("Offset:2:DirsData", stream)
+
 	for _, dir := range dat.Dirs {
-		if err = dat.readDir(dir); err != nil {
+		if err = dat.readDir(stream, dir); err != nil {
 			return err
 		}
 	}
+
+	dat.Dbg.AddOffset("Offset:3:FilesContent", stream)
 
 	return nil
 }
 
-func (dat *falloutDat_1) readDir(dir *falloutDir_1) (err error) {
-	// probably pointless to keep that in struct
-	if dir.FilesCount, err = dat.readInt32(); err != nil {
+func (dat *falloutDat_1) readDir(stream io.Reader, dir *falloutDir_1) (err error) {
+	dir.Dbg = make(dbg.Map)
+	dir.Dbg.AddOffset("Offset:0:Info", stream)
+
+	if err = binary.Read(stream, binary.BigEndian, &dir.FilesCount); err != nil {
 		return err
 	}
 
-	// same as above, plus it', well, unknown
-	if dir.Unknown, err = dat.readInt32array(Const().HeaderLen); err != nil {
-		return err
+	// Unknown[1] always 0x10, probably obsolete file entry size, which (excluding)
+	for idx := range dir.Header {
+		if err = binary.Read(stream, binary.BigEndian, &dir.Header[idx]); err != nil {
+			return err
+		}
 	}
+
+	dir.Dbg.AddOffset("Offset:1:Files", stream)
 
 	dir.Files = make([]*falloutFile_1, dir.FilesCount)
 
 	for idx := range dir.Files {
 		dir.Files[idx] = new(falloutFile_1)
+		dir.Files[idx].Dbg = make(dbg.Map)
 		dir.Files[idx].parentDir = dir
 
-		if err = dat.readFile(dir.Files[idx]); err != nil {
+		if err = dat.readFile(stream, dir.Files[idx]); err != nil {
 			return err
 		}
 	}
 
+	dir.Dbg.AddOffset("Offset:2:End", stream)
+
 	return nil
 }
 
-func (dat *falloutDat_1) readFile(file *falloutFile_1) (err error) {
-	if file.Name, err = dat.readString(); err != nil {
+func (dat *falloutDat_1) readFile(stream io.Reader, file *falloutFile_1) (err error) {
+	file.Dbg.AddOffset("Offset:0:Name", stream)
+
+	if file.Name, err = dat.readString(stream); err != nil {
 		return err
 	}
+
+	file.Dbg.AddOffset("Offset:1:Info", stream)
 
 	var errMsg = "dat1/readFile(" + file.Name + ") "
 
-	if file.PackMethod, err = dat.readInt32(); err == nil {
-		switch file.PackMethod {
-		case 0x10:
-			// FalloutCompressStore???
-			return fmt.Errorf("%s compression mode [0x%X=%d] not implemented", errMsg, file.PackMethod, file.PackMethod)
-		case 0x20:
-			// FalloutCompressPlain
-		case 0x40:
-			// FalloutCompressLZSS
-			file.Packed = true
-		default:
-			return fmt.Errorf("%s unknown compression mode [0x%X=%d]", errMsg, file.PackMethod, file.PackMethod)
-		}
-	} else {
+	if err = binary.Read(stream, binary.BigEndian, &file.CompressMode); err != nil {
 		return err
 	}
 
-	if file.Offset, err = dat.readInt32(); err != nil {
+	switch file.CompressMode {
+	case lzss.FalloutCompressStore:
+		// 0x10 is used in db.c as one of values, but so far haven't seen it in wild
+		return fmt.Errorf("%s compress mode [0x%X=%d] not implemented yet", errMsg, file.CompressMode, file.CompressMode)
+	case lzss.FalloutCompressNone:
+		//
+	case lzss.FalloutCompressLZSS:
+		//
+	default:
+		return fmt.Errorf("%s unknown compression mode [0x%X=%d]", errMsg, file.CompressMode, file.CompressMode)
+	}
+
+	if err = binary.Read(stream, binary.BigEndian, &file.Offset); err != nil {
 		return err
 	}
 
-	if file.SizeReal, err = dat.readInt32(); err != nil {
+	if err = binary.Read(stream, binary.BigEndian, &file.SizeReal); err != nil {
 		return err
 	}
 
-	if file.SizePacked, err = dat.readInt32(); err != nil {
+	if err = binary.Read(stream, binary.BigEndian, &file.SizePacked); err != nil {
 		return err
 	}
+
+	file.Dbg.AddOffset("Offset:2:End", stream)
 
 	return nil
 }
 
-// TODO? generics
+func (dat *falloutDat_1) readString(stream io.Reader) (str string, err error) {
+	var buff = make([]byte, 1)
 
-func (dat *falloutDat_1) readInt16() (out int16, err error) {
-	if err = binary.Read(dat.stream, binary.BigEndian, &out); err != nil {
-		return 0, err
-	}
-
-	return out, nil
-}
-
-func (dat *falloutDat_1) readInt32() (out int32, err error) {
-	if err = binary.Read(dat.stream, binary.BigEndian, &out); err != nil {
-		return 0, err
-	}
-
-	return out, nil
-}
-
-func (dat *falloutDat_1) readUInt8() (out uint8, err error) {
-	if err = binary.Read(dat.stream, binary.BigEndian, &out); err != nil {
-		return 0, err
-	}
-
-	return out, nil
-}
-
-func (dat *falloutDat_1) readByte() (out byte, err error) {
-	if err = binary.Read(dat.stream, binary.BigEndian, &out); err != nil {
-		return 0, err
-	}
-
-	return out, nil
-}
-
-/*
-func (dat *falloutDat_1) readUInt8AsInt16() (out int16, err error) {
-	var tmp uint8
-	if err = binary.Read(dat.stream, binary.BigEndian, &tmp); err != nil {
-		return 0, err
-	}
-
-	return int16(tmp), nil
-}
-*/
-
-func (dat *falloutDat_1) readInt32array(size uint8) (out []int32, err error) {
-	out = make([]int32, size)
-	for idx := range out {
-		if out[idx], err = dat.readInt32(); err != nil {
-			return nil, err
-		}
-	}
-
-	return out, nil
-}
-
-func (dat *falloutDat_1) readString() (str string, err error) {
-	var len uint8
-	if len, err = dat.readUInt8(); err != nil {
+	if _, err = stream.Read(buff); err != nil {
 		return str, err
 	}
 
-	var buff = make([]byte, len)
-	if err = binary.Read(dat.stream, binary.BigEndian, &buff); err != nil {
+	buff = make([]byte, buff[0])
+	if _, err = stream.Read(buff); err != nil {
 		return str, err
 	}
 

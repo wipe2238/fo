@@ -3,80 +3,76 @@ package dat
 import (
 	"fmt"
 	"io"
+
+	"github.com/wipe2238/fo/x/dbg"
 )
 
 //
 
-type consts struct {
-	HeaderLen uint8
-}
-
-func Const() consts {
-	return consts{
-		HeaderLen: 3,
-	}
-}
-
+// FalloutDat represents single .dat file
 //
+// NOTE: Unstable interface
+type FalloutDat interface {
+	GetGame() uint8 // returns 1 or 2
 
-type FalloutDatOptions struct {
+	GetDirs() []FalloutDir
+
+	GetDbg() dbg.Map
+	FillDbg()
+
+	// implementation details
+
+	readDat(stream io.Reader) error
 }
 
-func DefaultOptions() *FalloutDatOptions {
-	return &FalloutDatOptions{}
-}
-
+// FalloutDat represents single directory entry
 //
+// NOTE: Unstable interface
+type FalloutDir interface {
+	GetParentDat() FalloutDat
 
-// FalloutFile represents a single file stored in .dat
+	GetName() string // returns base name (FILENAME.EXT)
+	GetPath() string // returns full path (DIR//NAME/FILENAME.EXT)
+
+	GetFiles() []FalloutFile
+
+	GetDbg() dbg.Map
+}
+
+// FalloutFile represents a single file entry
+//
+// NOTE: Unstable interface
 type FalloutFile interface {
 	GetParentDir() FalloutDir
 
 	GetName() string // returns base name (FILENAME.EXT)
 	GetPath() string // returns full path (DIR/NAME/FILENAME.EXT)
 
-	GetPacked() bool
-	GetSizeReal() int32
-	GetSizePacked() int32
-	GetOffset() int32
+	GetOffset() int64
+	GetCompressMode() uint32
+	GetSizeReal() int64
+	GetSizePacked() int64
 
 	GetBytesReal(io.ReadSeeker) ([]byte, error)
 	GetBytesPacked(io.ReadSeeker) ([]byte, error)
-}
 
-type FalloutDir interface {
-	GetParentDat() FalloutDat
-
-	GetName() string // returns base name (NAME)
-	GetPath() string // returns full path (DIR/NAME)
-
-	GetFiles() ([]FalloutFile, error)
-}
-
-type FalloutDat interface {
-	readStream(stream io.Reader, options *FalloutDatOptions) error
-
-	Reset()
-
-	GetGame() byte // returns 1 or 2
-	GetDirs() ([]FalloutDir, error)
-	// GetDirsPaths() ([]FalloutDir, error)
+	GetDbg() dbg.Map
 }
 
 //
 
-func Fallout1(stream io.Reader, options *FalloutDatOptions) (fo1dat FalloutDat, err error) {
+func Fallout1(stream io.Reader) (fo1dat FalloutDat, err error) {
 	fo1dat = new(falloutDat_1)
 
-	if err = fo1dat.readStream(stream, options); err != nil {
+	if err = fo1dat.readDat(stream); err != nil {
 		return nil, fmt.Errorf("dat.Fallout1() %w", err)
 	}
 
 	return fo1dat, nil
 }
 
-func Fallout2(filename string, options *FalloutDatOptions) (fo2dat FalloutDat, err error) {
-	return nil, fmt.Errorf("dat.Fallout2(%s) not implemented", filename)
+func Fallout2(stream io.Reader) (fo2dat FalloutDat, err error) {
+	return nil, fmt.Errorf("dat.Fallout2() not implemented")
 
 	/*
 		fo2dat = new(falloutDat_2)
@@ -91,16 +87,11 @@ func Fallout2(filename string, options *FalloutDatOptions) (fo2dat FalloutDat, e
 
 //
 
-// Should be used by DATx implementation before extraction
+// Should be used by DATx implementation before decompression
 func seekFile(stream io.ReadSeeker, file FalloutFile) (err error) {
-	var size = file.GetSizeReal()
-	if file.GetPacked() {
-		size = file.GetSizePacked()
-	}
-
 	// set stream to file end position
 	// make sure stream won't EOF in a middle of reading
-	if _, err = stream.Seek(int64((file.GetOffset() + size)), io.SeekStart); err != nil {
+	if _, err = stream.Seek(int64((file.GetOffset() + file.GetSizePacked())), io.SeekStart); err != nil {
 		return err
 	}
 
@@ -111,5 +102,3 @@ func seekFile(stream io.ReadSeeker, file FalloutFile) (err error) {
 
 	return nil
 }
-
-func Witness(...any) {}
