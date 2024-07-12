@@ -7,12 +7,14 @@ on:
   - 'go.mod'
   - 'go.sum'
   - '**.go'
+  - '**/testdata/**'
  pull_request:
   paths:
   - '.github/workflows/go.yml'
   - 'go.mod'
   - 'go.sum'
   - '**.go'
+  - '**/testdata/**'
 
 defaults:
  run:
