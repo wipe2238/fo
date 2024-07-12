@@ -25,6 +25,8 @@ func init() {
 }
 
 func argList(arg *cobra.Command, args []string) (err error) {
+	// all todo/fixme/etc in here applies to every other arg as well
+
 	// FIXME expose functionality to users
 	if err = cmd.ResolveFilename(&args[0], "@"); err != nil {
 		return err
