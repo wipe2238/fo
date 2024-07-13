@@ -1,6 +1,6 @@
 package steam
 
-var AppId = struct { // const
+var AppID = struct { // const
 	Fallout1 uint64
 	Fallout2 uint64
 }{

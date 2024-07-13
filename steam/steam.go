@@ -8,8 +8,8 @@ func IsSteamInstalled() bool {
 }
 
 // IsSteamAppInstalled returns true if app directory can be found without errors
-func IsSteamAppInstalled(appId uint64) bool {
-	var _, err = GetAppPath(appId)
+func IsSteamAppInstalled(appID uint64) bool {
+	var _, err = GetAppPath(appID)
 
 	return err == nil
 }

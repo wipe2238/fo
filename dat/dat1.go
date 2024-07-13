@@ -9,7 +9,25 @@ import (
 	"github.com/wipe2238/fo/x/dbg"
 )
 
-type falloutFile_1 struct {
+type falloutDatV1 struct {
+	DirsCount int32    // DAT1
+	Header    [3]int32 // DAT1
+
+	Dirs []*falloutDirV1
+	Dbg  dbg.Map
+}
+
+type falloutDirV1 struct {
+	Path       string   // DAT1: len byte, name [len]byte
+	FilesCount int32    // DAT1
+	Header     [3]int32 // DAT1
+
+	Files     []*falloutFileV1
+	Dbg       dbg.Map
+	parentDat *falloutDatV1
+}
+
+type falloutFileV1 struct {
 	Name         string // DAT1: len byte, name [len]byte
 	CompressMode uint32 // DAT1
 	Offset       uint32 // DAT1
@@ -17,29 +35,11 @@ type falloutFile_1 struct {
 	SizePacked   uint32 // DAT1
 
 	Dbg       dbg.Map
-	parentDir *falloutDir_1
-}
-
-type falloutDir_1 struct {
-	Path       string   // DAT1: len byte, name [len]byte
-	FilesCount int32    // DAT1
-	Header     [3]int32 // DAT1
-
-	Files     []*falloutFile_1
-	Dbg       dbg.Map
-	parentDat *falloutDat_1
-}
-
-type falloutDat_1 struct {
-	DirsCount int32    // DAT1
-	Header    [3]int32 // DAT1
-
-	Dirs []*falloutDir_1
-	Dbg  dbg.Map
+	parentDir *falloutDirV1
 }
 
 // readDat implements FalloutDat
-func (dat *falloutDat_1) readDat(stream io.Reader) (err error) {
+func (dat *falloutDatV1) readDat(stream io.Reader) (err error) {
 	dat.Dbg = make(dbg.Map)
 	dat.Dbg.AddOffset("Offset:0:Info", stream)
 	if err = binary.Read(stream, binary.BigEndian, &dat.DirsCount); err != nil {
@@ -78,10 +78,10 @@ func (dat *falloutDat_1) readDat(stream io.Reader) (err error) {
 
 	dat.Dbg.AddOffset("Offset:1:DirsNames", stream)
 
-	dat.Dirs = make([]*falloutDir_1, dat.DirsCount)
+	dat.Dirs = make([]*falloutDirV1, dat.DirsCount)
 
 	for idx := range dat.Dirs {
-		dat.Dirs[idx] = new(falloutDir_1)
+		dat.Dirs[idx] = new(falloutDirV1)
 		dat.Dirs[idx].Dbg = make(dbg.Map)
 		dat.Dirs[idx].parentDat = dat
 
@@ -109,7 +109,7 @@ func (dat *falloutDat_1) readDat(stream io.Reader) (err error) {
 	return nil
 }
 
-func (dat *falloutDat_1) readDir(stream io.Reader, dir *falloutDir_1) (err error) {
+func (dat *falloutDatV1) readDir(stream io.Reader, dir *falloutDirV1) (err error) {
 	dir.Dbg = make(dbg.Map)
 	dir.Dbg.AddOffset("Offset:0:Info", stream)
 
@@ -126,10 +126,10 @@ func (dat *falloutDat_1) readDir(stream io.Reader, dir *falloutDir_1) (err error
 
 	dir.Dbg.AddOffset("Offset:1:Files", stream)
 
-	dir.Files = make([]*falloutFile_1, dir.FilesCount)
+	dir.Files = make([]*falloutFileV1, dir.FilesCount)
 
 	for idx := range dir.Files {
-		dir.Files[idx] = new(falloutFile_1)
+		dir.Files[idx] = new(falloutFileV1)
 		dir.Files[idx].Dbg = make(dbg.Map)
 		dir.Files[idx].parentDir = dir
 
@@ -143,7 +143,7 @@ func (dat *falloutDat_1) readDir(stream io.Reader, dir *falloutDir_1) (err error
 	return nil
 }
 
-func (dat *falloutDat_1) readFile(stream io.Reader, file *falloutFile_1) (err error) {
+func (dat *falloutDatV1) readFile(stream io.Reader, file *falloutFileV1) (err error) {
 	file.Dbg.AddOffset("Offset:0:Name", stream)
 
 	if file.Name, err = dat.readString(stream); err != nil {
@@ -187,7 +187,7 @@ func (dat *falloutDat_1) readFile(stream io.Reader, file *falloutFile_1) (err er
 	return nil
 }
 
-func (dat *falloutDat_1) readString(stream io.Reader) (str string, err error) {
+func (dat *falloutDatV1) readString(stream io.Reader) (str string, err error) {
 	var buff = make([]byte, 1)
 
 	if _, err = stream.Read(buff); err != nil {

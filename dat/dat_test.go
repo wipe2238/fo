@@ -17,17 +17,19 @@ import (
 	"github.com/wipe2238/fo/x/maketest"
 )
 
-// DoDat searchs ALL known locations where .dat files might bepresent and uses callbacks to
+// DoDat searches ALL known locations where .dat files might be present and uses callbacks to
 // run tests/benchmarks on each of them
 //
 // Current search locations:
-//   - testdata/ directory (WIP)
+//   - testdata/ directory
 //   - Steam installation directories
 func DoDat(tb testing.TB,
 	callbackDat func(testing.TB, io.ReadSeeker, FalloutDat),
 	callbackDir func(testing.TB, io.ReadSeeker, FalloutDir),
 	callbackFile func(testing.TB, io.ReadSeeker, FalloutFile),
 ) {
+	tb.Helper()
+
 	// testdata/
 	DoRunTB(tb, "testdata", func(tb testing.TB) {
 		var (
@@ -37,21 +39,22 @@ func DoDat(tb testing.TB,
 
 		for idx, ext := range []string{"dat", "dat1", "dat2"} {
 			DoRunTB(tb, strings.ToUpper(ext), func(tb testing.TB) {
-				if idx == 0 {
+				// TODO: remove when version guessing is implemented
+				if ext == "dat" {
 					tb.Skipf("Guessing DAT version not implemented yet")
 				}
 
-				paths, err = filepath.Glob(filepath.Join("testdata", "*."+strings.ToLower(ext)))
+				paths, err = filepath.Glob(filepath.Join("testdata", "*."+ext))
 				must.NoError(tb, err)
 
 				if len(paths) < 1 {
-					tb.Skipf("No .%s files found", strings.ToLower(ext))
+					tb.Skipf("No .%s files found", ext)
 				}
 
 				for _, filename := range paths {
 					DoRunTB(tb, filepath.Base(filename), func(tb testing.TB) {
 						// TODO: remove when DAT2 implementation starts
-						if idx == 2 {
+						if ext == "dat2" {
 							tb.Skipf("DAT2 reading not implemented yet")
 						}
 
@@ -71,10 +74,10 @@ func DoDat(tb testing.TB,
 	// Steam
 	DoRunTB(tb, "Steam", func(tb testing.TB) {
 		for idx := range 2 {
-			var appId, fallout, fo, _ = maketest.FalloutIdxData(idx)
+			var appID, fallout, fo, f = maketest.FalloutIdxData(idx)
 
 			DoRunTB(tb, fallout, func(tb testing.TB) {
-				if !steam.IsSteamAppInstalled(appId) && !maketest.Must(fo) {
+				if !steam.IsSteamAppInstalled(appID) && !maketest.Must(fo) {
 					tb.Skipf("%s not installed", fallout)
 				}
 
@@ -86,13 +89,14 @@ func DoDat(tb testing.TB,
 							osFile       *os.File
 							dat          FalloutDat
 						)
-						filenamePath, err = steam.GetAppFilePath(appId, filename)
+						filenamePath, err = steam.GetAppFilePath(appID, filename)
 						must.NoError(tb, err)
 
 						// TODO: remove when DAT2 implementation starts
-						if idx == 1 {
+						if f == "2" {
 							tb.Skipf("DAT2 reading not implemented yet")
 						}
+
 						osFile, dat, err = DoDatOpen(filenamePath, (idx + 1))
 						must.NoError(tb, err)
 						must.NotNil(tb, osFile)
@@ -109,6 +113,8 @@ func DoDat(tb testing.TB,
 
 // DoRunTB does necessary type conversion before calling testing.T.Run() or testing.B.Run()
 func DoRunTB(tb testing.TB, name string, funcTB func(testing.TB)) bool {
+	tb.Helper()
+
 	var (
 		tbAsT, okT = tb.(*testing.T)
 		tbAsB, okB = tb.(*testing.B)
@@ -142,6 +148,7 @@ func DoDatOpen(filename string, fo int) (osFile *os.File, dat FalloutDat, err er
 
 	if dat, err = fn[fo-1](osFile); err != nil {
 		osFile.Close()
+
 		return nil, nil, err
 	}
 
@@ -154,6 +161,8 @@ func DoDatFile(tb testing.TB, osFile *os.File, dat FalloutDat,
 	callbackDir func(testing.TB, io.ReadSeeker, FalloutDir),
 	callbackFile func(testing.TB, io.ReadSeeker, FalloutFile),
 ) {
+	tb.Helper()
+
 	if callbackDat != nil {
 		callbackDat(tb, osFile, dat)
 	}
@@ -181,11 +190,11 @@ func TestFunc(t *testing.T) {
 	var fn = [2]func(io.Reader) (FalloutDat, error){Fallout1, Fallout2}
 
 	for idx := range 2 {
-		var appId, fallout, fo, _ = maketest.FalloutIdxData(idx)
+		var appID, fallout, fo, f = maketest.FalloutIdxData(idx)
 
 		t.Run(fallout, func(t *testing.T) {
 
-			if !steam.IsSteamAppInstalled(appId) && !maketest.Must(fo) {
+			if !steam.IsSteamAppInstalled(appID) && !maketest.Must(fo) {
 				t.Skipf("%s not installed", fallout)
 			}
 
@@ -193,11 +202,11 @@ func TestFunc(t *testing.T) {
 				t.Run(filename, func(t *testing.T) {
 					var osFile *os.File
 
-					filename, err = steam.GetAppFilePath(appId, filename)
+					filename, err = steam.GetAppFilePath(appID, filename)
 					must.NoError(t, err)
 
 					// TODO: remove when DAT2 implementation starts
-					if idx == 1 {
+					if f == "2" {
 						t.Skipf("DAT2 reading not implemented yet")
 					}
 
@@ -217,7 +226,7 @@ func TestFunc(t *testing.T) {
 }
 
 func TestDbg(testingT *testing.T) {
-	var dbg = func(tb testing.TB, dbgMap dbg.Map) {
+	var testDbg = func(tb testing.TB, dbgMap dbg.Map) {
 		DoRunTB(tb, "DbgMap", func(tb testing.TB) {
 			must.NotNil(tb, dbgMap)
 			test.MapNotContainsKey(tb, dbgMap, "")
@@ -234,13 +243,13 @@ func TestDbg(testingT *testing.T) {
 	DoDat(testingT,
 		func(tb testing.TB, _ io.ReadSeeker, dat FalloutDat) {
 			dat.FillDbg()
-			dbg(tb, dat.GetDbg())
+			testDbg(tb, dat.GetDbg())
 		},
 		func(tb testing.TB, _ io.ReadSeeker, dir FalloutDir) {
-			dbg(tb, dir.GetDbg())
+			testDbg(tb, dir.GetDbg())
 		},
 		func(tb testing.TB, _ io.ReadSeeker, file FalloutFile) {
-			dbg(tb, file.GetDbg())
+			testDbg(tb, file.GetDbg())
 		},
 	)
 }
@@ -289,6 +298,7 @@ func TestImpl(testingT *testing.T) {
 
 			must.StrNotEqFold(tb, path, "")
 			test.StrNotContains(tb, path, `\`)
+			test.StrNotHasPrefix(tb, path, "/")
 			test.StrNotHasSuffix(tb, path, "/")
 			if path != "." {
 				test.StrNotHasPrefix(tb, ".", path)
@@ -338,6 +348,7 @@ func TestImpl(testingT *testing.T) {
 
 			must.StrNotEqFold(tb, path, "")
 			test.StrNotContains(tb, path, `\`)
+			test.StrNotHasPrefix(tb, path, "/")
 			test.StrHasPrefix(tb, parentDir.GetPath(), path)
 			test.EqOp(tb, path, parentDir.GetPath()+"/"+name)
 

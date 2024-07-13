@@ -8,7 +8,8 @@
         "files.eol": "\n",
         "files.readonlyInclude": {
             "**/testdata/**": true,
-            "bin/**": true
+            "bin/**": true,
+            "x/files/**": true
         },
         "editor.formatOnType": true,
         "editor.formatOnSave": true,

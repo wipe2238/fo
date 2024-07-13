@@ -9,9 +9,9 @@ import (
 	"github.com/Jleagle/steam-go/steamvdf"
 )
 
-func GetAppPath(appId uint64) (appPath string, err error) {
+func GetAppPath(appID uint64) (appPath string, err error) {
 	var (
-		self           string = fmt.Sprintf("GetAppPath(%d)", appId)
+		self           = fmt.Sprintf("GetAppPath(%d)", appID)
 		librariesPaths []string
 	)
 
@@ -25,9 +25,9 @@ func GetAppPath(appId uint64) (appPath string, err error) {
 			ok     bool
 		)
 
-		// read <library path>/steamapps/appmanifest_<appId>.acf
+		// read <library path>/steamapps/appmanifest_<appID>.acf
 
-		var path = filepath.Join(libraryPath, "steamapps", fmt.Sprintf("appmanifest_%d.acf", appId))
+		var path = filepath.Join(libraryPath, "steamapps", fmt.Sprintf("appmanifest_%d.acf", appID))
 
 		if _, err = os.Stat(path); err != nil {
 			continue
@@ -53,9 +53,9 @@ func GetAppPath(appId uint64) (appPath string, err error) {
 	return "", fmt.Errorf("%s cannot locate app directory", self)
 }
 
-func GetAppFilePath(appId uint64, filename string) (gameFile string, err error) {
+func GetAppFilePath(appID uint64, filename string) (gameFile string, err error) {
 	var (
-		self = fmt.Sprintf("GetAppFilePath(%d,%s)", appId, filename)
+		self = fmt.Sprintf("GetAppFilePath(%d,%s)", appID, filename)
 	)
 
 	// prevent escaping app directory
@@ -65,7 +65,7 @@ func GetAppFilePath(appId uint64, filename string) (gameFile string, err error) 
 		}
 	}
 
-	if gameFile, err = GetAppPath(appId); err != nil {
+	if gameFile, err = GetAppPath(appID); err != nil {
 		return "", err
 	}
 

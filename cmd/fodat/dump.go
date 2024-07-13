@@ -65,6 +65,7 @@ func doDump(_ *cobra.Command, datFile dat.FalloutDat) (err error) {
 
 		if strings.HasPrefix(key, "Size:") || (strings.HasPrefix(key, "DAT1:") && strings.Contains(key, ":Size")) {
 			// just give me my goddamn number, i don't care how
+			// in case of any errors, size simply wont't be humanized, not a big deal
 			if val64, errP := strconv.ParseInt(fmt.Sprintf("%d", val), 10, 64); errP == nil && val64 > 1024 {
 				right += " = " + sizeHuman(val64)
 			}

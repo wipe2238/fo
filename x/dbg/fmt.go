@@ -19,7 +19,7 @@ func Fmts(val any) (result []string) {
 		result = append(result, fmt.Sprintf("0x%0X", val))
 		result = append(result, fmt.Sprintf("%d", val))
 	} else if valKind == reflect.Array || valKind == reflect.Slice {
-		// FIXME assumes that slice/array can hold ints only
+		// FIXME: assumes that slice/array can hold ints only
 		result = append(result, strings.ReplaceAll(fmt.Sprintf("%#X", val), "X", "x"))
 		result = append(result, fmt.Sprintf("%d", val))
 	} else {

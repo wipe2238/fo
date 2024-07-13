@@ -7,9 +7,9 @@ import (
 )
 
 func TestStruct(t *testing.T) {
-	var dir falloutDir_1
+	var dir falloutDirV1
 	test.Eq(t, len(dir.Header), 3)
 
-	var dat falloutDat_1
+	var dat falloutDatV1
 	test.Eq(t, len(dat.Header), 3)
 }

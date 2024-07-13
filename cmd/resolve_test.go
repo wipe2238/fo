@@ -108,7 +108,7 @@ func TestSteamGame(t *testing.T) {
 	)
 
 	for idx := range 2 {
-		var appId, fallout, fo, f = maketest.FalloutIdxData(idx)
+		var appID, fallout, fo, f = maketest.FalloutIdxData(idx)
 
 		t.Run(fallout, func(t *testing.T) {
 			// invalid
@@ -130,7 +130,7 @@ func TestSteamGame(t *testing.T) {
 				})
 			}
 			// valid
-			if !steam.IsSteamAppInstalled(appId) && !maketest.Must(fo) {
+			if !steam.IsSteamAppInstalled(appID) && !maketest.Must(fo) {
 				t.Skipf("%s not installed", fallout)
 			}
 
@@ -168,7 +168,7 @@ func TestSteamFile(t *testing.T) {
 	)
 
 	for idx := range 2 {
-		var appId, fallout, fo, f = maketest.FalloutIdxData(idx)
+		var appID, fallout, fo, f = maketest.FalloutIdxData(idx)
 
 		t.Run(fallout, func(t *testing.T) {
 			// invalid
@@ -185,7 +185,7 @@ func TestSteamFile(t *testing.T) {
 				})
 			}
 
-			if !steam.IsSteamAppInstalled(appId) && !maketest.Must(fo) {
+			if !steam.IsSteamAppInstalled(appID) && !maketest.Must(fo) {
 				t.Skipf("%s not installed", fallout)
 			}
 

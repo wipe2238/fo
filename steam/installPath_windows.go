@@ -25,9 +25,7 @@ func GetSteamInstallPath() (output string, err error) {
 		)
 
 		if key, err = registry.OpenKey(registry.LOCAL_MACHINE, filepath.Dir(registryPath), registry.QUERY_VALUE); err != nil {
-			if err == registry.ErrNotExist {
-				continue
-			}
+			continue
 		}
 		defer key.Close()
 
@@ -55,5 +53,4 @@ func GetSteamInstallPath() (output string, err error) {
 	}
 
 	return "", fmt.Errorf("GetSteamInstallPath() Steam not found")
-
 }

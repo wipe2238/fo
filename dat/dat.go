@@ -62,7 +62,7 @@ type FalloutFile interface {
 //
 
 func Fallout1(stream io.Reader) (fo1dat FalloutDat, err error) {
-	fo1dat = new(falloutDat_1)
+	fo1dat = new(falloutDatV1)
 
 	if err = fo1dat.readDat(stream); err != nil {
 		return nil, fmt.Errorf("dat.Fallout1() %w", err)
@@ -71,7 +71,7 @@ func Fallout1(stream io.Reader) (fo1dat FalloutDat, err error) {
 	return fo1dat, nil
 }
 
-func Fallout2(stream io.Reader) (fo2dat FalloutDat, err error) {
+func Fallout2(_ io.Reader) (fo2dat FalloutDat, err error) {
 	return nil, fmt.Errorf("dat.Fallout2() not implemented")
 
 	/*
@@ -91,12 +91,12 @@ func Fallout2(stream io.Reader) (fo2dat FalloutDat, err error) {
 func seekFile(stream io.ReadSeeker, file FalloutFile) (err error) {
 	// set stream to file end position
 	// make sure stream won't EOF in a middle of reading
-	if _, err = stream.Seek(int64((file.GetOffset() + file.GetSizePacked())), io.SeekStart); err != nil {
+	if _, err = stream.Seek((file.GetOffset() + file.GetSizePacked()), io.SeekStart); err != nil {
 		return err
 	}
 
 	// set stream to file start position
-	if _, err = stream.Seek(int64(file.GetOffset()), io.SeekStart); err != nil {
+	if _, err = stream.Seek(file.GetOffset(), io.SeekStart); err != nil {
 		return err
 	}
 

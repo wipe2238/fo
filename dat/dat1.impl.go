@@ -14,12 +14,12 @@ import (
 //
 
 // GetGame implements FalloutDat
-func (dat *falloutDat_1) GetGame() byte {
+func (dat *falloutDatV1) GetGame() byte {
 	return 1
 }
 
 // GetDirs implements FalloutDat
-func (dat *falloutDat_1) GetDirs() (dirs []FalloutDir) {
+func (dat *falloutDatV1) GetDirs() (dirs []FalloutDir) {
 	dirs = make([]FalloutDir, len(dat.Dirs))
 
 	for idx, dir := range dat.Dirs {
@@ -29,11 +29,11 @@ func (dat *falloutDat_1) GetDirs() (dirs []FalloutDir) {
 	return dirs
 }
 
-func (dat *falloutDat_1) GetDbg() dbg.Map {
+func (dat *falloutDatV1) GetDbg() dbg.Map {
 	return dat.Dbg
 }
 
-func (dat *falloutDat_1) FillDbg() {
+func (dat *falloutDatV1) FillDbg() {
 	const (
 		strHeader      = "DAT1:1:Header"
 		strContent     = "Size:FilesContent"
@@ -45,7 +45,7 @@ func (dat *falloutDat_1) FillDbg() {
 		strFilesCount  = "Stats:FilesCount"
 	)
 
-	var contentAdd = func(file *falloutFile_1, dir *falloutDir_1, dat *falloutDat_1) {
+	var contentAdd = func(file *falloutFileV1, dir *falloutDirV1, dat *falloutDatV1) {
 		var ext = path.Ext(file.Name)
 		if ext == "" {
 			ext = ".?"
@@ -57,38 +57,36 @@ func (dat *falloutDat_1) FillDbg() {
 		)
 
 		var update = func(dbgMap dbg.Map, prefixNorm string, prefixMean string) {
-			var count, real, packed int64
+			var count, sizeReal, sizePacked int64
 
 			if val, ok := dbgMap[(prefixNorm + strCount)].(int64); ok {
 				count = val
 			}
 
 			if val, ok := dbgMap[(prefixNorm + strReal)].(int64); ok {
-				real = val
+				sizeReal = val
 			}
 
 			if val, ok := dbgMap[(prefixNorm + strPacked)].(int64); ok {
-				packed = val
+				sizePacked = val
 			}
 
 			count++
-			real += file.GetSizeReal()
-			packed += file.GetSizePacked()
+			sizeReal += file.GetSizeReal()
+			sizePacked += file.GetSizePacked()
 
 			dbgMap[(prefixNorm + strCount)] = count
-			dbgMap[(prefixNorm + strReal)] = real
-			dbgMap[(prefixNorm + strPacked)] = packed
+			dbgMap[(prefixNorm + strReal)] = sizeReal
+			dbgMap[(prefixNorm + strPacked)] = sizePacked
 
-			dbgMap[(prefixMean + strReal)] = real / count
-			dbgMap[(prefixMean + strPacked)] = packed / count
+			dbgMap[(prefixMean + strReal)] = sizeReal / count
+			dbgMap[(prefixMean + strPacked)] = sizePacked / count
 		}
 
 		for _, dbgMap := range []dbg.Map{dir.Dbg, dat.Dbg} {
 			update(dbgMap, prefixOne, prefixMeanOne)
 			update(dbgMap, (strContent + strAll), (strContentMean + strAll))
 		}
-		//update(dat.Dbg, prefixOne, prefixMeanOne)
-		//update(dat.Dbg, (strContent + strAll), (strContentMean + strAll))
 	}
 
 	var contentCleanup = func(dbgMap dbg.Map) {
@@ -181,33 +179,34 @@ func (dat *falloutDat_1) FillDbg() {
 //
 
 // GetParentDat implements FalloutDir
-func (dir *falloutDir_1) GetParentDat() FalloutDat {
+func (dir *falloutDirV1) GetParentDat() FalloutDat {
 	return dir.parentDat
 }
 
 // GetName implements FalloutDir
-func (dir *falloutDir_1) GetName() string {
+func (dir *falloutDirV1) GetName() string {
 	var path = strings.Split(dir.Path, "\\")
 
 	return path[len(path)-1]
 }
 
 // GetPath implements FalloutDir
-func (dir *falloutDir_1) GetPath() string {
+func (dir *falloutDirV1) GetPath() string {
 	return strings.ReplaceAll(dir.Path, "\\", "/")
 }
 
 // GetFiles implements FalloutDir
-func (dir *falloutDir_1) GetFiles() (files []FalloutFile) {
+func (dir *falloutDirV1) GetFiles() (files []FalloutFile) {
 	files = make([]FalloutFile, len(dir.Files))
 
 	for idx, file := range dir.Files {
 		files[idx] = file
 	}
+
 	return files
 }
 
-func (dir *falloutDir_1) GetDbg() dbg.Map {
+func (dir *falloutDirV1) GetDbg() dbg.Map {
 	return dir.Dbg
 }
 
@@ -216,38 +215,38 @@ func (dir *falloutDir_1) GetDbg() dbg.Map {
 //
 
 // GetParentDir implements FalloutFile
-func (file *falloutFile_1) GetParentDir() FalloutDir {
+func (file *falloutFileV1) GetParentDir() FalloutDir {
 	return file.parentDir
 }
 
 // GetName implements FalloutFile
-func (file *falloutFile_1) GetName() string {
+func (file *falloutFileV1) GetName() string {
 	return file.Name
 }
 
-func (file *falloutFile_1) GetPath() string {
+func (file *falloutFileV1) GetPath() string {
 	return strings.ReplaceAll(file.GetParentDir().GetPath()+"/"+file.GetName(), "\\", "/")
 }
 
 // GetOffset implements FalloutFile
-func (file *falloutFile_1) GetOffset() int64 {
+func (file *falloutFileV1) GetOffset() int64 {
 	return int64(file.Offset)
 }
 
 // GetCompressMode implements FalloutFile
-func (file *falloutFile_1) GetCompressMode() uint32 {
+func (file *falloutFileV1) GetCompressMode() uint32 {
 	return file.CompressMode
 }
 
 // GetOffset implements FalloutFile
-func (file *falloutFile_1) GetSizeReal() int64 {
+func (file *falloutFileV1) GetSizeReal() int64 {
 	return int64(file.SizeReal)
 }
 
 // GetSizePacked returns size of file block
 //
 // GetSizePacked implements FalloutFile
-func (file *falloutFile_1) GetSizePacked() int64 {
+func (file *falloutFileV1) GetSizePacked() int64 {
 	if file.SizePacked == 0 {
 		return file.GetSizeReal()
 	}
@@ -256,7 +255,7 @@ func (file *falloutFile_1) GetSizePacked() int64 {
 }
 
 // GetFileLZSS returns converted file data, which can be passed to `lzss.FalloutLZSS“ functions
-func (file *falloutFile_1) getFileLZSS() lzss.FalloutFileLZSS {
+func (file *falloutFileV1) getFileLZSS() lzss.FalloutFileLZSS {
 	return lzss.FalloutFileLZSS{
 		Offset:       file.Offset,
 		CompressMode: file.CompressMode,
@@ -266,7 +265,7 @@ func (file *falloutFile_1) getFileLZSS() lzss.FalloutFileLZSS {
 }
 
 // GetBytesReal implements FalloutFile
-func (file *falloutFile_1) GetBytesReal(stream io.ReadSeeker) (out []byte, err error) {
+func (file *falloutFileV1) GetBytesReal(stream io.ReadSeeker) (out []byte, err error) {
 	if out, err = lzss.Fallout1.DecompressFile(stream, file.getFileLZSS()); err != nil {
 		return nil, err
 	}
@@ -274,7 +273,7 @@ func (file *falloutFile_1) GetBytesReal(stream io.ReadSeeker) (out []byte, err e
 	return out, nil
 }
 
-func (file *falloutFile_1) GetBytesPacked(stream io.ReadSeeker) (out []byte, err error) {
+func (file *falloutFileV1) GetBytesPacked(stream io.ReadSeeker) (out []byte, err error) {
 	// seekFile() sets stream position to file offset, plus some additional checks
 	// called early to not waste time initializing stuff for stream which can't be used
 	if err = seekFile(stream, file); err != nil {
@@ -289,6 +288,6 @@ func (file *falloutFile_1) GetBytesPacked(stream io.ReadSeeker) (out []byte, err
 	return out, nil
 }
 
-func (file *falloutFile_1) GetDbg() dbg.Map {
+func (file *falloutFileV1) GetDbg() dbg.Map {
 	return file.Dbg
 }

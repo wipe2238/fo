@@ -38,9 +38,9 @@ func (lzss LZSS) Decompress(reader io.Reader, packedSize uint32, unpackedSize ui
 
 	var (
 		outputIdx     uint32
-		dictionary    []byte = make([]byte, lzss.DictionarySize)
-		dictionaryIdx uint16 = lzss.DictionarySize - uint16(lzss.MaxMatch)
-		tmp           []byte = make([]byte, 1)
+		dictionary    = make([]byte, lzss.DictionarySize)
+		dictionaryIdx = lzss.DictionarySize - uint16(lzss.MaxMatch)
+		tmp           = make([]byte, 1)
 		flags         uint16
 	)
 

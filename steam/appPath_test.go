@@ -9,23 +9,23 @@ import (
 	"github.com/wipe2238/fo/x/maketest"
 )
 
-func DoTestSteamFallout(t *testing.T, appId uint64, ext string) {
+func DoTestSteamFallout(t *testing.T, appID uint64, ext string) {
 	var err error
 
 	// skip current test if app not found
-	if !IsSteamAppInstalled(appId) || !maketest.Must(ext) {
-		t.Skipf("App %d not installed", appId)
+	if !IsSteamAppInstalled(appID) || !maketest.Must(ext) {
+		t.Skipf("App %d not installed", appID)
 	}
 	must.NoError(t, err)
 
 	for _, filename := range []string{"./MASTER.DAT", `\CRITTER.DAT`, "/MASTER.DAT"} {
-		_, err = GetAppFilePath(appId, filename)
+		_, err = GetAppFilePath(appID, filename)
 		test.Error(t, err)
 	}
 
 	for _, filename := range []string{"MASTER.DAT", "CRITTER.DAT", "Manual/../MASTER.DAT"} {
 		var path string
-		path, err = GetAppFilePath(appId, filename)
+		path, err = GetAppFilePath(appID, filename)
 		must.NoError(t, err)
 
 		_, err = os.Stat(path)
@@ -43,9 +43,9 @@ func TestUnknownApp(t *testing.T) {
 }
 
 func TestSteamFallout1(test *testing.T) {
-	DoTestSteamFallout(test, AppId.Fallout1, "fo1")
+	DoTestSteamFallout(test, AppID.Fallout1, "fo1")
 }
 
 func TestSteamFallout2(test *testing.T) {
-	DoTestSteamFallout(test, AppId.Fallout2, "fo2")
+	DoTestSteamFallout(test, AppID.Fallout2, "fo2")
 }

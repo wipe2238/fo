@@ -22,9 +22,9 @@ func RepoDir() (string, bool) {
 		_, err = os.Stat(filepath.Join(dir, "fo.code-workspace"))
 		if err == nil {
 			return dir, true
-		} else {
-			tmp = dir
 		}
+
+		tmp = dir
 	}
 
 	return "", false
@@ -40,11 +40,11 @@ func Must(ext string) bool {
 	return false
 }
 
-func FalloutIdxData(idx int) (appId uint64, nameLong string, nameShort string, n string) {
-	appId = 38400 + uint64((idx * 10))
+func FalloutIdxData(idx int) (appID uint64, nameLong string, nameShort string, n string) {
+	appID = 38400 + uint64((idx * 10))
 	nameLong = fmt.Sprintf("Fallout%d", idx+1)
 	nameShort = fmt.Sprintf("fo%d", idx+1)
 	n = fmt.Sprintf("%d", idx+1)
 
-	return appId, nameLong, nameShort, n
+	return appID, nameLong, nameShort, n
 }

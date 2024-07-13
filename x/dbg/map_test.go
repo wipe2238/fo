@@ -7,7 +7,7 @@ import (
 )
 
 func TestAddSize(t *testing.T) {
-	var dbgMap Map = make(Map)
+	var dbgMap = make(Map)
 
 	dbgMap["Begin"] = int64(77)
 	dbgMap["End"] = int64(127)

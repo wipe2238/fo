@@ -28,7 +28,6 @@ func init() {
 	})
 
 	app.SetErrPrefix("ERROR: ")
-
 }
 
 func main() {

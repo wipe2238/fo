@@ -1,6 +1,6 @@
 package mousetrap
 
-// TODO deal with mousetrap
+// TODO: deal with mousetrap
 
 func StartedByExplorer() bool {
 	return StartedByFileManager()

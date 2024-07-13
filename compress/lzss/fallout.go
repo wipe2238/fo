@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	FalloutCompressStore uint32 = 0x10 // needs reasearch, see fallout1-re/src/plib/db/db.c, de.flags 16
+	FalloutCompressStore uint32 = 0x10 // needs research, see fallout1-re/src/plib/db/db.c, de.flags 16
 	FalloutCompressNone  uint32 = 0x20 // as-is, SizePacked is 0
 	FalloutCompressLZSS  uint32 = 0x40
 )
@@ -57,7 +57,7 @@ func (fallout FalloutLZSS) Decompress(stream io.Reader, unpackedSize uint32) ([]
 			return nil, fmt.Errorf("%s size mismatch %d != %d", self, -packedSize, unpackedSize-2)
 		}
 
-		// Simply copy all bytes as-is, without without involving LZSS in the process
+		// Simply copy all bytes as-is, without involving LZSS in the process
 		var output = make([]byte, unpackedSize)
 		if _, err := stream.Read(output); err != nil {
 			return nil, fmt.Errorf("%s cannot read uncompressed block: %w", self, err)
@@ -87,7 +87,7 @@ func (fallout FalloutLZSS) DecompressFile(stream io.ReadSeeker, file FalloutFile
 	}
 
 	if file.CompressMode == FalloutCompressNone {
-		// Simply copy all bytes as-is, without without involving LZSS in the process
+		// Simply copy all bytes as-is, without involving LZSS in the process
 
 		var output = make([]byte, file.SizeReal)
 		if _, err = stream.Read(output); err != nil {
