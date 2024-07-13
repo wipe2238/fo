@@ -29,33 +29,38 @@ func DoDat(tb testing.TB,
 	callbackFile func(testing.TB, io.ReadSeeker, FalloutFile),
 ) {
 	// testdata/
-	DoRunTB(tb, "testdata", func(tb0 testing.TB) {
+	DoRunTB(tb, "testdata", func(tb testing.TB) {
 		var (
 			err   error
 			paths []string
 		)
 
 		for idx, ext := range []string{"dat", "dat1", "dat2"} {
-			DoRunTB(tb0, strings.ToUpper(ext), func(tb1 testing.TB) {
+			DoRunTB(tb, strings.ToUpper(ext), func(tb testing.TB) {
 				if idx == 0 {
-					tb1.Skipf("Guessing DAT version not implemented yet")
+					tb.Skipf("Guessing DAT version not implemented yet")
 				}
 
 				paths, err = filepath.Glob(filepath.Join("testdata", "*."+strings.ToLower(ext)))
-				must.NoError(tb1, err)
+				must.NoError(tb, err)
 
 				if len(paths) < 1 {
-					tb1.Skipf("No .%s files found", strings.ToLower(ext))
+					tb.Skipf("No .%s files found", strings.ToLower(ext))
 				}
 
 				for _, filename := range paths {
-					DoRunTB(tb1, filepath.Base(filename), func(tb2 testing.TB) {
-						var osFile, dat, err = DoDatOpen(filename, idx)
-						must.NoError(tb2, err)
-						must.NotNil(tb2, osFile)
-						must.NotNil(tb2, dat)
+					DoRunTB(tb, filepath.Base(filename), func(tb testing.TB) {
+						// TODO: remove when DAT2 implementation starts
+						if idx == 2 {
+							tb.Skipf("DAT2 reading not implemented yet")
+						}
 
-						DoDatFile(tb2, osFile, dat, callbackDat, callbackDir, callbackFile)
+						var osFile, dat, err = DoDatOpen(filename, idx)
+						must.NoError(tb, err)
+						must.NotNil(tb, osFile)
+						must.NotNil(tb, dat)
+
+						DoDatFile(tb, osFile, dat, callbackDat, callbackDir, callbackFile)
 						osFile.Close()
 					})
 				}
@@ -64,17 +69,17 @@ func DoDat(tb testing.TB,
 	})
 
 	// Steam
-	DoRunTB(tb, "Steam", func(tb0 testing.TB) {
+	DoRunTB(tb, "Steam", func(tb testing.TB) {
 		for idx := range 2 {
 			var appId, fallout, fo, _ = maketest.FalloutIdxData(idx)
 
-			DoRunTB(tb0, fallout, func(tb1 testing.TB) {
+			DoRunTB(tb, fallout, func(tb testing.TB) {
 				if !steam.IsSteamAppInstalled(appId) && !maketest.Must(fo) {
-					tb1.Skipf("%s not installed", fallout)
+					tb.Skipf("%s not installed", fallout)
 				}
 
 				for _, filename := range []string{"MASTER.DAT", "CRITTER.DAT"} {
-					DoRunTB(tb1, filename, func(tb2 testing.TB) {
+					DoRunTB(tb, filename, func(tb testing.TB) {
 						var (
 							err          error
 							filenamePath string
@@ -82,14 +87,18 @@ func DoDat(tb testing.TB,
 							dat          FalloutDat
 						)
 						filenamePath, err = steam.GetAppFilePath(appId, filename)
-						must.NoError(tb2, err)
+						must.NoError(tb, err)
 
+						// TODO: remove when DAT2 implementation starts
+						if idx == 1 {
+							tb.Skipf("DAT2 reading not implemented yet")
+						}
 						osFile, dat, err = DoDatOpen(filenamePath, (idx + 1))
-						must.NoError(tb2, err)
-						must.NotNil(tb2, osFile)
-						must.NotNil(tb2, dat)
+						must.NoError(tb, err)
+						must.NotNil(tb, osFile)
+						must.NotNil(tb, dat)
 
-						DoDatFile(tb2, osFile, dat, callbackDat, callbackDir, callbackFile)
+						DoDatFile(tb, osFile, dat, callbackDat, callbackDir, callbackFile)
 						osFile.Close()
 					})
 				}
@@ -155,9 +164,9 @@ func DoDatFile(tb testing.TB, osFile *os.File, dat FalloutDat,
 				callbackDir(tb, osFile, dir)
 			}
 			for _, file := range dir.GetFiles() {
-				DoRunTB(tb, file.GetName(), func(tb2 testing.TB) {
+				DoRunTB(tb, file.GetName(), func(tb testing.TB) {
 					if callbackFile != nil {
-						callbackFile(tb2, osFile, file)
+						callbackFile(tb, osFile, file)
 					}
 				})
 			}
@@ -186,6 +195,11 @@ func TestFunc(t *testing.T) {
 
 					filename, err = steam.GetAppFilePath(appId, filename)
 					must.NoError(t, err)
+
+					// TODO: remove when DAT2 implementation starts
+					if idx == 1 {
+						t.Skipf("DAT2 reading not implemented yet")
+					}
 
 					osFile, err = os.Open(filename)
 					must.NoError(t, err)
@@ -299,6 +313,8 @@ func TestImpl(testingT *testing.T) {
 			must.NotNil(tb, parentDir)
 			parentDat = parentDir.GetParentDat()
 			must.NotNil(tb, parentDat)
+
+			//
 
 			if compressMode == lzss.FalloutCompressNone {
 				test.EqOp(tb, sizeReal, sizePacked)

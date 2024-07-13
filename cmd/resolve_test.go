@@ -194,8 +194,8 @@ func TestSteamFile(t *testing.T) {
 			for _, filename := range []string{
 				"MASTER.DAT",
 				"CRITTER.DAT",
-				"Manual/MANUAL.PDF",
-				"Manual/fallout_refcard.pdf",
+				"Readme.rtf",
+				"Extras/ScrnSet.msg",
 			} {
 				filename = fmt.Sprintf("@steam:fallout%s:%s", f, filename)
 				filenameBefore = filename
