@@ -11,9 +11,15 @@ type Map map[string]any
 
 //
 
-func (dbg Map) AddOffset(name string, stream io.Reader) {
-	// FIXME: return error, if any
-	dbg[name], _ = stream.(io.Seeker).Seek(0, io.SeekCurrent)
+func (dbg Map) AddOffset(name string, stream io.ReadSeeker) (err error) {
+	var pos int64
+	if pos, err = stream.(io.Seeker).Seek(0, io.SeekCurrent); err != nil {
+		return err
+	}
+
+	dbg[name] = pos
+
+	return nil
 }
 
 func (dbg Map) AddSize(name string, keyBegin string, keyEnd string) {
