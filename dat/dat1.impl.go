@@ -2,7 +2,6 @@ package dat
 
 import (
 	"io"
-	"path"
 	"strings"
 
 	"github.com/wipe2238/fo/compress/lzss"
@@ -34,96 +33,7 @@ func (dat *falloutDatV1) GetDbg() dbg.Map {
 }
 
 func (dat *falloutDatV1) FillDbg() {
-	const (
-		strHeader      = "DAT1:1:Header"
-		strContent     = "Size:FilesContent"
-		strContentMean = "Size:FilesContentMean"
-		strAll         = ":All"
-		strCount       = ":Count"
-		strReal        = ":Real"
-		strPacked      = ":Packed"
-		strFilesCount  = "Stats:FilesCount"
-	)
-
-	var contentAdd = func(file *falloutFileV1, dir *falloutDirV1, dat *falloutDatV1) {
-		var ext = path.Ext(file.Name)
-		if ext == "" {
-			ext = ".?"
-		}
-
-		var (
-			prefixOne     = strContent + ":" + ext
-			prefixMeanOne = strContentMean + ":" + ext
-		)
-
-		var update = func(dbgMap dbg.Map, prefixNorm string, prefixMean string) {
-			var count, sizeReal, sizePacked int64
-
-			if val, ok := dbgMap[(prefixNorm + strCount)].(int64); ok {
-				count = val
-			}
-
-			if val, ok := dbgMap[(prefixNorm + strReal)].(int64); ok {
-				sizeReal = val
-			}
-
-			if val, ok := dbgMap[(prefixNorm + strPacked)].(int64); ok {
-				sizePacked = val
-			}
-
-			count++
-			sizeReal += file.GetSizeReal()
-			sizePacked += file.GetSizePacked()
-
-			dbgMap[(prefixNorm + strCount)] = count
-			dbgMap[(prefixNorm + strReal)] = sizeReal
-			dbgMap[(prefixNorm + strPacked)] = sizePacked
-
-			dbgMap[(prefixMean + strReal)] = sizeReal / count
-			dbgMap[(prefixMean + strPacked)] = sizePacked / count
-		}
-
-		for _, dbgMap := range []dbg.Map{dir.Dbg, dat.Dbg} {
-			update(dbgMap, prefixOne, prefixMeanOne)
-			update(dbgMap, (strContent + strAll), (strContentMean + strAll))
-		}
-	}
-
-	var contentCleanup = func(dbgMap dbg.Map) {
-		var keys = dbgMap.Keys((strContent + ":."))
-		if len(keys) == 3 {
-			// there's only one file extension in directory
-
-			// delete `Size:FilesContent:.EXT:Count`
-			// duplicate of `DAT1:0:FilesCount`
-			delete(dbgMap, keys[0])
-
-			// delete `Size:FilesContent:All:*` and `Size:FilesContentMean:All:*`
-			// duplicates of `Size:FilesContent:.EXT:*`
-			for _, prefix := range []string{strContent, strContentMean} {
-				for _, key := range dbgMap.Keys(prefix + strAll) {
-					delete(dbgMap, key)
-				}
-			}
-		} else {
-			// there's at least two different file extensions in directory
-
-			for _, keyOld := range keys {
-				// `Size:FilesContent:.EXT:Count` (int64) -> `Stats:FilesCount:.EXT` (uint32)
-				if strings.HasSuffix(keyOld, strCount) {
-					var key = strings.Replace(keyOld, strContent, strFilesCount, 1)
-					key, _ = strings.CutSuffix(key, strCount)
-
-					dbgMap[key] = uint32(dbgMap[keyOld].(int64))
-					delete(dbgMap, keyOld)
-				}
-			}
-
-			// delete `Size::FilesContent:All:Count`
-			// duplicate of `DAT1:0:FilesCount`
-			delete(dbgMap, (strContent + strAll + strCount))
-		}
-	}
+	const strHeader = "DAT1:1:Header"
 
 	dat.Dbg["DAT1:0:DirsCount"] = dat.DirsCount
 	dat.Dbg[strHeader] = dat.Header
@@ -162,16 +72,16 @@ func (dat *falloutDatV1) FillDbg() {
 
 			//
 
-			contentAdd(file, dir, dat)
+			dbgAddContentStats(file, dir, dat)
 
 			file.Dbg["Idx:Dir"] = uint16(idxFile)
-			file.Dbg["Idx:Dat"] = uint16(dat.Dbg[strContent+strAll+strCount].(int64) - 1)
+			file.Dbg["Idx:Dat"] = uint16(dat.Dbg[(dbgContent+dbgAll+dbgCount)].(int64) - 1)
 		}
 
-		contentCleanup(dir.Dbg)
+		dbgCleanupContentStats(dir.Dbg)
 	}
 
-	contentCleanup(dat.Dbg)
+	dbgCleanupContentStats(dat.Dbg)
 }
 
 //
@@ -192,7 +102,7 @@ func (dir *falloutDirV1) GetName() string {
 
 // GetPath implements FalloutDir
 func (dir *falloutDirV1) GetPath() string {
-	return strings.ReplaceAll(dir.Path, "\\", "/")
+	return strings.ReplaceAll(dir.Path, `\`, "/")
 }
 
 // GetFiles implements FalloutDir

@@ -3,11 +3,14 @@ package dat
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/wipe2238/fo/x/dbg"
 )
 
 //
+
+const errPackage = "fo/dat:"
 
 // FalloutDat represents single .dat file
 //
@@ -22,7 +25,7 @@ type FalloutDat interface {
 
 	// implementation details
 
-	readDat(stream io.Reader) error
+	readDat(stream io.ReadSeeker) error
 }
 
 // FalloutDat represents single directory entry
@@ -61,28 +64,45 @@ type FalloutFile interface {
 
 //
 
-func Fallout1(stream io.Reader) (fo1dat FalloutDat, err error) {
-	fo1dat = new(falloutDatV1)
-
-	if err = fo1dat.readDat(stream); err != nil {
-		return nil, fmt.Errorf("dat.Fallout1() %w", err)
+// Open attempts to read unspecified file as DAT2 or DAT1 (in that order)
+func Open(filename string) (osFile *os.File, dat FalloutDat, err error) {
+	if osFile, err = os.Open(filename); err != nil {
+		return nil, nil, err
 	}
 
-	return fo1dat, nil
+	for _, reader := range [2]func(io.ReadSeeker) (FalloutDat, error){Fallout1, Fallout2} {
+		if dat, err = reader(osFile); err != nil {
+			osFile.Seek(0, io.SeekStart)
+			continue
+		}
+
+		return osFile, dat, nil
+	}
+
+	osFile.Close()
+	return nil, nil, fmt.Errorf("%s Open(%s) cannot guess DAT file version", errPackage, filename)
 }
 
-func Fallout2(_ io.Reader) (fo2dat FalloutDat, err error) {
-	return nil, fmt.Errorf("dat.Fallout2() not implemented")
+// Fallout1 reads already opened stream as DAT1
+func Fallout1(stream io.ReadSeeker) (dat1 FalloutDat, err error) {
+	dat1 = new(falloutDatV1)
 
-	/*
-		fo2dat = new(falloutDat_2)
+	if err = dat1.readDat(stream); err != nil {
+		return nil, fmt.Errorf("%s Fallout1() %w", errPackage, err)
+	}
 
-		   	if err = readOsFileInit( filename,fo2dat, closeAfterReading); err != nil {
-		   		return nil, fmt.Errorf("dat.Fallout2(%s) %w", filename, err)
-		   	}
+	return dat1, nil
+}
 
-		   return fo2dat, nil
-	*/
+// Fallout2 reads already opened stream as DAT2
+func Fallout2(stream io.ReadSeeker) (dat2 FalloutDat, err error) {
+	dat2 = new(falloutDatV2)
+
+	if err = dat2.readDat(stream); err != nil {
+		return nil, fmt.Errorf("%s Fallout2() %w", errPackage, err)
+	}
+
+	return dat2, nil
 }
 
 //

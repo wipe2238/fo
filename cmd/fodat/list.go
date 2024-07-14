@@ -14,10 +14,10 @@ import (
 func init() {
 	var cmd = &cobra.Command{
 		Use:   "list [dat file]",
-		Short: "List files in DAT file (only DAT1 supported right now)",
+		Short: "List files in DAT file",
 
 		GroupID: app.GroupID,
-		Args:    cobra.ExactArgs(1),
+		Args:    cobra.ExactArgs(1), // TODO: allow multiple files
 		RunE:    func(cmd *cobra.Command, args []string) error { return argList(cmd, args) },
 	}
 
@@ -32,18 +32,16 @@ func argList(arg *cobra.Command, args []string) (err error) {
 		return err
 	}
 
-	var osFile *os.File
-	if osFile, err = os.Open(args[0]); err == nil {
-		defer osFile.Close()
+	var (
+		osFile  *os.File
+		datFile dat.FalloutDat
+	)
+
+	if osFile, datFile, err = dat.Open(args[0]); err == nil {
+		// `list` doesn't need stream open to work
+		osFile.Close()
 	} else {
 		return err
-	}
-
-	// TODO: detect DAT1/DAT2 automagically
-
-	var datFile dat.FalloutDat
-	if datFile, err = dat.Fallout1(osFile); err != nil {
-		return
 	}
 
 	return doList(arg, datFile)
@@ -60,15 +58,26 @@ func doList(_ *cobra.Command, datFile dat.FalloutDat) (err error) {
 				perc uint64 = 100
 			)
 
-			switch file.GetCompressMode() {
-			case lzss.FalloutCompressStore:
-				pack = "store"
-			case lzss.FalloutCompressNone:
-				pack = "none"
-			case lzss.FalloutCompressLZSS:
-				pack = "lzss"
-			default:
-				pack = fmt.Sprintf("(%d)", file.GetCompressMode())
+			if datFile.GetGame() == 1 {
+				switch file.GetCompressMode() {
+				case lzss.FalloutCompressStore:
+					pack = "store"
+				case lzss.FalloutCompressNone:
+					pack = "none"
+				case lzss.FalloutCompressLZSS:
+					pack = "lzss"
+				default:
+					pack = fmt.Sprintf("(%d)", file.GetCompressMode())
+				}
+			} else if datFile.GetGame() == 2 {
+				switch file.GetCompressMode() {
+				case 0:
+					pack = "none"
+				case 1:
+					pack = "pack"
+				default:
+					pack = fmt.Sprintf("(%d)", file.GetCompressMode())
+				}
 			}
 
 			if file.GetSizeReal() > 0 {

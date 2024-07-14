@@ -17,6 +17,8 @@ import (
 	"github.com/wipe2238/fo/x/maketest"
 )
 
+var fallout = [2]func(io.ReadSeeker) (FalloutDat, error){Fallout1, Fallout2}
+
 // DoDat searches ALL known locations where .dat files might be present and uses callbacks to
 // run tests/benchmarks on each of them
 //
@@ -39,11 +41,6 @@ func DoDat(tb testing.TB,
 
 		for idx, ext := range []string{"dat", "dat1", "dat2"} {
 			DoRunTB(tb, strings.ToUpper(ext), func(tb testing.TB) {
-				// TODO: remove when version guessing is implemented
-				if ext == "dat" {
-					tb.Skipf("Guessing DAT version not implemented yet")
-				}
-
 				paths, err = filepath.Glob(filepath.Join("testdata", "*."+ext))
 				must.NoError(tb, err)
 
@@ -53,11 +50,6 @@ func DoDat(tb testing.TB,
 
 				for _, filename := range paths {
 					DoRunTB(tb, filepath.Base(filename), func(tb testing.TB) {
-						// TODO: remove when DAT2 implementation starts
-						if ext == "dat2" {
-							tb.Skipf("DAT2 reading not implemented yet")
-						}
-
 						var osFile, dat, err = DoDatOpen(filename, idx)
 						must.NoError(tb, err)
 						must.NotNil(tb, osFile)
@@ -74,7 +66,7 @@ func DoDat(tb testing.TB,
 	// Steam
 	DoRunTB(tb, "Steam", func(tb testing.TB) {
 		for idx := range 2 {
-			var appID, fallout, fo, f = maketest.FalloutIdxData(idx)
+			var appID, fallout, fo, _ = maketest.FalloutIdxData(idx)
 
 			DoRunTB(tb, fallout, func(tb testing.TB) {
 				if !steam.IsSteamAppInstalled(appID) && !maketest.Must(fo) {
@@ -89,13 +81,9 @@ func DoDat(tb testing.TB,
 							osFile       *os.File
 							dat          FalloutDat
 						)
+
 						filenamePath, err = steam.GetAppFilePath(appID, filename)
 						must.NoError(tb, err)
-
-						// TODO: remove when DAT2 implementation starts
-						if f == "2" {
-							tb.Skipf("DAT2 reading not implemented yet")
-						}
 
 						osFile, dat, err = DoDatOpen(filenamePath, (idx + 1))
 						must.NoError(tb, err)
@@ -131,22 +119,21 @@ func DoRunTB(tb testing.TB, name string, funcTB func(testing.TB)) bool {
 	return true
 }
 
-// DoDatOpen opens a .dat file; currently requires to specify from which game file comes from
+// DoDatOpen opens a .dat file; requires to specify from which game file comes from
 //
 // Note: Calling function is responsible for closing os.File
 func DoDatOpen(filename string, fo int) (osFile *os.File, dat FalloutDat, err error) {
-	var fn = [2]func(io.Reader) (FalloutDat, error){Fallout1, Fallout2}
-
 	if osFile, err = os.Open(filename); err != nil {
 		return nil, nil, err
 	}
 
 	if fo < 1 || fo > 2 {
 		osFile.Close()
+
 		return nil, nil, fmt.Errorf("DoDatOpen(%s) fo < 1 || fo > 2", filename)
 	}
 
-	if dat, err = fn[fo-1](osFile); err != nil {
+	if dat, err = fallout[fo-1](osFile); err != nil {
 		osFile.Close()
 
 		return nil, nil, err
@@ -187,10 +174,10 @@ func DoDatFile(tb testing.TB, osFile *os.File, dat FalloutDat,
 
 func TestFunc(t *testing.T) {
 	var err error
-	var fn = [2]func(io.Reader) (FalloutDat, error){Fallout1, Fallout2}
+	var fn = [2]func(io.ReadSeeker) (FalloutDat, error){Fallout1, Fallout2}
 
 	for idx := range 2 {
-		var appID, fallout, fo, f = maketest.FalloutIdxData(idx)
+		var appID, fallout, fo, _ = maketest.FalloutIdxData(idx)
 
 		t.Run(fallout, func(t *testing.T) {
 
@@ -204,11 +191,6 @@ func TestFunc(t *testing.T) {
 
 					filename, err = steam.GetAppFilePath(appID, filename)
 					must.NoError(t, err)
-
-					// TODO: remove when DAT2 implementation starts
-					if f == "2" {
-						t.Skipf("DAT2 reading not implemented yet")
-					}
 
 					osFile, err = os.Open(filename)
 					must.NoError(t, err)
@@ -326,13 +308,20 @@ func TestImpl(testingT *testing.T) {
 
 			//
 
-			if compressMode == lzss.FalloutCompressNone {
-				test.EqOp(tb, sizeReal, sizePacked)
-			} else if compressMode == lzss.FalloutCompressLZSS {
-				test.Less(tb, sizeReal, sizePacked)
-			} else {
-				// detect lzss.FalloutCompressStore
-				tb.Fatalf("Unknown compressMode 0x%X %d", compressMode, compressMode)
+			if parentDat.GetGame() == 1 {
+				if compressMode == lzss.FalloutCompressNone {
+					test.EqOp(tb, sizeReal, sizePacked)
+				} else if compressMode == lzss.FalloutCompressLZSS {
+					test.Less(tb, sizeReal, sizePacked)
+				} else {
+					// detect lzss.FalloutCompressStore
+					tb.Fatalf("Unknown compressMode 0x%X %d", compressMode, compressMode)
+				}
+			} else if parentDat.GetGame() == 2 {
+				test.LessEq(tb, 1, compressMode)
+				if compressMode == 1 {
+					test.Less(tb, sizeReal, sizePacked)
+				}
 			}
 
 			//
@@ -343,8 +332,10 @@ func TestImpl(testingT *testing.T) {
 			test.StrNotContains(tb, name, "/")
 			test.StrNotContains(tb, name, `\`)
 
-			// HACK: dbg.Map in tests
-			test.GreaterEq(tb, parentDat.GetDbg()["Offset:3:FilesContent"].(int64), offset)
+			if parentDat.GetGame() == 1 {
+				// HACK: dbg.Map in tests
+				test.GreaterEq(tb, parentDat.GetDbg()["Offset:3:FilesContent"].(int64), offset)
+			}
 
 			must.StrNotEqFold(tb, path, "")
 			test.StrNotContains(tb, path, `\`)
@@ -352,6 +343,7 @@ func TestImpl(testingT *testing.T) {
 			test.StrHasPrefix(tb, parentDir.GetPath(), path)
 			test.EqOp(tb, path, parentDir.GetPath()+"/"+name)
 
+			// GetSizePacked() cannot return raw value
 			if sizePacked == 0 {
 				test.EqOp(tb, sizeReal, sizePacked)
 			}

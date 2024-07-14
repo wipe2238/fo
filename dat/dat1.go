@@ -39,7 +39,9 @@ type falloutFileV1 struct {
 }
 
 // readDat implements FalloutDat
-func (dat *falloutDatV1) readDat(stream io.Reader) (err error) {
+func (dat *falloutDatV1) readDat(stream io.ReadSeeker) (err error) {
+	const errPrefix = errPackage + "readDat(V1)"
+
 	dat.Dbg = make(dbg.Map)
 	dat.Dbg.AddOffset("Offset:0:Info", stream)
 	if err = binary.Read(stream, binary.BigEndian, &dat.DirsCount); err != nil {
@@ -63,13 +65,14 @@ func (dat *falloutDatV1) readDat(stream io.Reader) (err error) {
 		break
 	// errors
 	case 0:
-		return fmt.Errorf("dat1/read: header[0] = 0 %+v", dat.Header)
+		// maybe it should be a warning?
+		return fmt.Errorf("%s header[0] = 0 %+v", errPrefix, dat.Header)
 	default:
-		return fmt.Errorf("dat1/read: unknown header[0] [0x%X 0x%X 0x%X] %+v", dat.Header[0], dat.Header[1], dat.Header[2], dat.Header)
+		return fmt.Errorf("%s unknown header[0] [0x%X 0x%X 0x%X] %+v", errPrefix, dat.Header[0], dat.Header[1], dat.Header[2], dat.Header)
 	}
 
 	if dat.Header[1] != 0 {
-		return fmt.Errorf("dat1/read: invalid header[1] 0x%X %#v", dat.Header[1], dat.Header)
+		return fmt.Errorf("%s invalid header[1] 0x%X %#v", errPrefix, dat.Header[1], dat.Header)
 	}
 
 	//
@@ -109,7 +112,7 @@ func (dat *falloutDatV1) readDat(stream io.Reader) (err error) {
 	return nil
 }
 
-func (dat *falloutDatV1) readDir(stream io.Reader, dir *falloutDirV1) (err error) {
+func (dat *falloutDatV1) readDir(stream io.ReadSeeker, dir *falloutDirV1) (err error) {
 	dir.Dbg = make(dbg.Map)
 	dir.Dbg.AddOffset("Offset:0:Info", stream)
 
@@ -143,7 +146,9 @@ func (dat *falloutDatV1) readDir(stream io.Reader, dir *falloutDirV1) (err error
 	return nil
 }
 
-func (dat *falloutDatV1) readFile(stream io.Reader, file *falloutFileV1) (err error) {
+func (dat *falloutDatV1) readFile(stream io.ReadSeeker, file *falloutFileV1) (err error) {
+	var errPrefix = errPackage + "readFile(V1," + file.GetPath() + ")"
+
 	file.Dbg.AddOffset("Offset:0:Name", stream)
 
 	if file.Name, err = dat.readString(stream); err != nil {
@@ -152,8 +157,6 @@ func (dat *falloutDatV1) readFile(stream io.Reader, file *falloutFileV1) (err er
 
 	file.Dbg.AddOffset("Offset:1:Info", stream)
 
-	var errMsg = "dat1/readFile(" + file.Name + ") "
-
 	if err = binary.Read(stream, binary.BigEndian, &file.CompressMode); err != nil {
 		return err
 	}
@@ -161,13 +164,13 @@ func (dat *falloutDatV1) readFile(stream io.Reader, file *falloutFileV1) (err er
 	switch file.CompressMode {
 	case lzss.FalloutCompressStore:
 		// 0x10 is used in db.c as one of values, but so far haven't seen it in wild
-		return fmt.Errorf("%s compress mode [0x%X=%d] not implemented yet", errMsg, file.CompressMode, file.CompressMode)
+		return fmt.Errorf("%s compress mode [0x%X=%d] not implemented yet", errPrefix, file.CompressMode, file.CompressMode)
 	case lzss.FalloutCompressNone:
 		//
 	case lzss.FalloutCompressLZSS:
 		//
 	default:
-		return fmt.Errorf("%s unknown compression mode [0x%X=%d]", errMsg, file.CompressMode, file.CompressMode)
+		return fmt.Errorf("%s unknown compression mode [0x%X=%d]", errPrefix, file.CompressMode, file.CompressMode)
 	}
 
 	if err = binary.Read(stream, binary.BigEndian, &file.Offset); err != nil {

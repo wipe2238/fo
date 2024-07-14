@@ -6,7 +6,7 @@ import (
 	"github.com/shoenig/test"
 )
 
-func TestStruct(t *testing.T) {
+func TestStructV1(t *testing.T) {
 	var dir falloutDirV1
 	test.Eq(t, len(dir.Header), 3)
 

@@ -18,7 +18,7 @@ func init() {
 		Short: "Dump DAT file data (only DAT1 supported right now)",
 
 		GroupID: app.GroupID,
-		Args:    cobra.ExactArgs(1),
+		Args:    cobra.ExactArgs(1), // TODO: allow multiple files
 		RunE:    func(cmd *cobra.Command, args []string) error { return argDump(cmd, args) },
 	}
 
@@ -30,15 +30,15 @@ func argDump(arg *cobra.Command, args []string) (err error) {
 		return err
 	}
 
-	var osFile *os.File
-	if osFile, err = os.Open(args[0]); err == nil {
-		defer osFile.Close()
-	} else {
-		return err
-	}
+	var (
+		osFile  *os.File
+		datFile dat.FalloutDat
+	)
 
-	var datFile dat.FalloutDat
-	if datFile, err = dat.Fallout1(osFile); err != nil {
+	if osFile, datFile, err = dat.Open(args[0]); err == nil {
+		// `dump` doesn't need stream open to work
+		osFile.Close()
+	} else {
 		return err
 	}
 
@@ -62,8 +62,15 @@ func doDump(_ *cobra.Command, datFile dat.FalloutDat) (err error) {
 	}
 
 	var printVal = func(key string, val any, left string, right string) {
+		var addSize bool
 
-		if strings.HasPrefix(key, "Size:") || (strings.HasPrefix(key, "DAT1:") && strings.Contains(key, ":Size")) {
+		if strings.HasPrefix(key, "Size:") {
+			addSize = true
+		} else if strings.HasPrefix(key, "DAT1:") || strings.HasPrefix(key, "DAT2:") {
+			addSize = strings.Contains(key, ":Size")
+		}
+
+		if addSize {
 			// just give me my goddamn number, i don't care how
 			// in case of any errors, size simply wont't be humanized, not a big deal
 			if val64, errP := strconv.ParseInt(fmt.Sprintf("%d", val), 10, 64); errP == nil && val64 > 1024 {
@@ -76,22 +83,16 @@ func doDump(_ *cobra.Command, datFile dat.FalloutDat) (err error) {
 
 	datFile.FillDbg()
 
-	if datFile.GetDbg().KeysMaxLen("") > 0 {
-		fmt.Printf("DAT%d\n", datFile.GetGame())
-		datFile.GetDbg().Dump("", "", printVal)
-	}
+	fmt.Printf("DAT%d\n", datFile.GetGame())
+	datFile.GetDbg().Dump("", "", printVal)
 
 	for _, dir := range datFile.GetDirs() {
-		if dir.GetDbg().KeysMaxLen("") > 0 {
-			fmt.Printf(" DIR [%s]\n", dir.GetPath())
-			dir.GetDbg().Dump("", "  ", printVal)
-		}
+		fmt.Printf(" DIR [%s]\n", dir.GetPath())
+		dir.GetDbg().Dump("", "  ", printVal)
 
 		for _, file := range dir.GetFiles() {
-			if file.GetDbg().KeysMaxLen("") > 0 {
-				fmt.Printf("  FILE [%s]\n", file.GetPath())
-				file.GetDbg().Dump("", "   ", printVal)
-			}
+			fmt.Printf("  FILE [%s]\n", file.GetPath())
+			file.GetDbg().Dump("", "   ", printVal)
 		}
 	}
 
