@@ -9,8 +9,8 @@ import (
 
 type LZSS struct {
 	DictionarySize uint16
-	MaxMatch       byte
 	MinMatch       byte
+	MaxMatch       byte
 }
 
 var Default = LZSS{
@@ -19,32 +19,36 @@ var Default = LZSS{
 	MaxMatch:       18,
 }
 
-// Decompress
-func (lzss LZSS) Decompress(reader io.Reader, packedSize uint32, unpackedSize uint32) (output []byte, err error) {
-	const self = "lzss.LZSS.Decompress"
+const errPackage = "fo/compress/lzss:"
 
+// Decompress
+func (lzss LZSS) Decompress(reader io.Reader, size int64) (output []byte, err error) {
 	// sanity check
 	if lzss.DictionarySize == 0 {
-		return nil, fmt.Errorf("%s() DictionarySize == 0", self)
+		return nil, fmt.Errorf("%s DictionarySize == 0", errPackage)
 	} else if lzss.MinMatch == 0 {
-		return nil, fmt.Errorf("%s() MinMatch == 0", self)
+		return nil, fmt.Errorf("%s MinMatch == 0", errPackage)
 	} else if lzss.MaxMatch == 0 {
-		return nil, fmt.Errorf("%s() MaxMatch == 0", self)
+		return nil, fmt.Errorf("%s MaxMatch == 0", errPackage)
 	} else if (lzss.DictionarySize % 2) != 0 {
-		return nil, fmt.Errorf("%s DictionarySize %% 2 != 0", self)
+		return nil, fmt.Errorf("%s DictionarySize %% 2 != 0", errPackage)
+	} else if size < 0 {
+		return nil, fmt.Errorf("%s size(%d) < 0", errPackage, size)
 	}
 
-	//
+	output = make([]byte, 0)
+
+	// thank you for your hard work
+	if size == 0 {
+		return output, nil
+	}
 
 	var (
-		outputIdx     uint32
 		dictionary    = make([]byte, lzss.DictionarySize)
 		dictionaryIdx = lzss.DictionarySize - uint16(lzss.MaxMatch)
 		tmp           = make([]byte, 1)
 		flags         uint16
 	)
-
-	output = make([]byte, unpackedSize)
 
 	for idx := range dictionary {
 		dictionary[idx] = ' '
@@ -54,16 +58,16 @@ func (lzss LZSS) Decompress(reader io.Reader, packedSize uint32, unpackedSize ui
 	// https://github.com/rotators/Fo1in2/blob/master/Tools/UndatUI/src/dat.cs
 	// https://github.com/mattseabrook/LZSS/blob/main/2023/lzss.cpp
 
-	for packedSize > 0 {
+	for size > 0 {
 		// @FlagNext
 		flags >>= 1
 
 		if (flags & uint16(0x0100)) == 0 {
 			// @Flag
 			// Read FL byte on very first loop, and every 9th loop after that
-			// No need for `packedSize` check here, it's done naturally by `for`
+			// No need for `size` check here, it's done naturally by `for`
 			if _, err = reader.Read(tmp); err == nil {
-				packedSize--
+				size--
 			} else {
 				return nil, err
 			}
@@ -73,18 +77,17 @@ func (lzss LZSS) Decompress(reader io.Reader, packedSize uint32, unpackedSize ui
 
 		if (flags % 2) == 1 {
 			// @FlagOdd
-			// Read raw byte and copy without changes
+			// Read raw byte and copy without changes, fill dictionay
 
-			if packedSize == 0 {
-				return nil, fmt.Errorf("%s(@FlagOdd) cannot read raw byte", self)
+			if size == 0 {
+				return nil, fmt.Errorf("%s @FlagOdd cannot read raw byte", errPackage)
 			} else if _, err = reader.Read(tmp); err == nil {
-				packedSize--
+				size--
 			} else {
 				return nil, err
 			}
 
-			output[outputIdx] = tmp[0]
-			outputIdx++
+			output = append(output, tmp[0])
 
 			dictionary[(dictionaryIdx % lzss.DictionarySize)] = tmp[0]
 			dictionaryIdx++
@@ -94,14 +97,14 @@ func (lzss LZSS) Decompress(reader io.Reader, packedSize uint32, unpackedSize ui
 
 			var (
 				dictionaryOffset uint16
-				length           uint32
+				length           uint16
 			)
 
 			// DO, dictionary offset
-			if packedSize == 0 {
-				return nil, fmt.Errorf("%s(@FlagEven) cannot read DO byte", self)
+			if size == 0 {
+				return nil, fmt.Errorf("%s @FlagEven cannot read DO byte", errPackage)
 			} else if _, err = reader.Read(tmp); err == nil {
-				packedSize--
+				size--
 			} else {
 				return nil, err
 			}
@@ -109,22 +112,21 @@ func (lzss LZSS) Decompress(reader io.Reader, packedSize uint32, unpackedSize ui
 			dictionaryOffset = uint16(tmp[0])
 
 			// LB, length
-			if packedSize == 0 {
-				return nil, fmt.Errorf("%s(@FlagEven) cannot read LB byte", self)
+			if size == 0 {
+				return nil, fmt.Errorf("%s @FlagEven cannot read LB byte", errPackage)
 			} else if _, err = reader.Read(tmp); err == nil {
-				packedSize--
+				size--
 			} else {
 				return nil, err
 			}
 
 			dictionaryOffset |= uint16((tmp[0] & 0xF0)) << 4
-			length = uint32((tmp[0] & 0x0F)) + uint32(lzss.MinMatch)
+			length = uint16((tmp[0] & 0x0F)) + uint16(lzss.MinMatch)
 
 			for idx := range length {
-				tmp[0] = dictionary[((dictionaryOffset + uint16(idx)) % lzss.DictionarySize)]
+				tmp[0] = dictionary[((dictionaryOffset + idx) % lzss.DictionarySize)]
 
-				output[outputIdx] = tmp[0]
-				outputIdx++
+				output = append(output, tmp[0])
 
 				dictionary[(dictionaryIdx % lzss.DictionarySize)] = tmp[0]
 				dictionaryIdx++
