@@ -421,6 +421,72 @@ func CheckExtract(tb testing.TB, stream io.ReadSeeker, file FalloutFile, fileSou
 	}
 }
 
+func TestExtracted(t *testing.T) {
+	var dir = "testdata/extracted"
+
+	var packed = make([]string, 0)
+	filepath.WalkDir(filepath.Clean(dir), func(path string, dirEntry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if dirEntry.IsDir() || dirEntry.Name() != "Packed" {
+			return nil
+		}
+
+		packed = append(packed, path)
+
+		return nil
+	})
+
+	for _, filePacked := range packed {
+		var testName, _ = strings.CutPrefix(filepath.ToSlash(filePacked), dir+"/")
+		testName, _ = strings.CutSuffix(testName, "/Packed")
+
+		t.Run(testName, func(t *testing.T) {
+			// TODO: simplify when/if .dat editing is possible
+
+			var (
+				err                       error
+				fileReal                  = filepath.Join(filepath.Dir(filePacked), "Real")
+				bytesOsReal, bytesDatReal []byte
+				osFilePacked              *os.File
+				fileInfo                  os.FileInfo
+				isFallout1                = strings.Contains(filePacked, "fallout1")
+			)
+
+			bytesOsReal, err = os.ReadFile(fileReal)
+			must.NoError(t, err)
+
+			osFilePacked, err = os.Open(filePacked)
+			must.NoError(t, err)
+			defer osFilePacked.Close()
+
+			fileInfo, err = osFilePacked.Stat()
+			must.NoError(t, err)
+
+			var file FalloutFile
+			if isFallout1 {
+				file = new(falloutFileV1)
+				file.(*falloutFileV1).PackedMode = lzss.FalloutCompressLZSS
+				file.(*falloutFileV1).SizePacked = uint32(fileInfo.Size())
+				file.(*falloutFileV1).SizeReal = uint32(len(bytesOsReal))
+			} else {
+				file = new(falloutFileV2)
+				file.(*falloutFileV2).PackedMode = 1
+				file.(*falloutFileV2).SizePacked = uint32(fileInfo.Size())
+				file.(*falloutFileV2).SizeReal = uint32(len(bytesOsReal))
+			}
+
+			bytesDatReal, err = file.GetBytesReal(osFilePacked)
+			test.NoError(t, err)
+
+			test.SliceEqFunc(t, bytesOsReal, bytesDatReal, func(a, b byte) bool { return a == b })
+		})
+
+	}
+}
+
 // CheckExtracted
 //   - Both `Real` and `Packed` files must exist in directory
 func CheckExtracted(tb testing.TB, stream io.ReadSeeker, file FalloutFile, fileSource string, dir string) {
