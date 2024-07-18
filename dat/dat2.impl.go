@@ -1,6 +1,9 @@
 package dat
 
 import (
+	"bytes"
+	"compress/zlib"
+	"fmt"
 	"io"
 	"strings"
 
@@ -43,7 +46,7 @@ func (dat *falloutDatV2) FillDbg() {
 
 		for idxFile, file := range dir.Files {
 			file.Dbg["DAT2:0:Path"] = file.Path
-			file.Dbg["DAT2:1:CompressMode"] = file.CompressMode
+			file.Dbg["DAT2:1:PackedMode"] = file.PackedMode
 			file.Dbg["DAT2:2:SizeReal"] = file.SizeReal
 			file.Dbg["DAT2:3:SizePacked"] = file.SizePacked
 			file.Dbg["DAT2:4:Offset"] = file.Offset
@@ -101,6 +104,11 @@ func (dir *falloutDirV2) GetDbg() dbg.Map {
 // FalloutFile implementation
 //
 
+// GetParentDat implements FalloutFile
+func (file *falloutFileV2) GetParentDat() FalloutDat {
+	return file.GetParentDir().GetParentDat()
+}
+
 // GetParentDir implements FalloutFile
 func (file *falloutFileV2) GetParentDir() FalloutDir {
 	return file.parentDir
@@ -115,17 +123,12 @@ func (file *falloutFileV2) GetName() string {
 
 // GetPath implements FalloutFile
 func (file *falloutFileV2) GetPath() string {
-	return file.parentDir.GetPath() + "/" + file.GetName()
+	return file.GetParentDir().GetPath() + "/" + file.GetName()
 }
 
 // GetOffset implements FalloutFile
 func (file *falloutFileV2) GetOffset() int64 {
 	return int64(file.Offset)
-}
-
-// GetCompressMode implements FalloutFile
-func (file *falloutFileV2) GetCompressMode() uint32 {
-	return uint32(file.CompressMode)
 }
 
 func (file *falloutFileV2) GetSizeReal() int64 {
@@ -136,14 +139,48 @@ func (file *falloutFileV2) GetSizePacked() int64 {
 	return int64(file.SizePacked)
 }
 
+// GetPacked implements FalloutFile
+func (file *falloutFileV2) GetPacked() bool {
+	return file.PackedMode > 0
+}
+
+// GetPackedMode implements FalloutFile
+func (file *falloutFileV2) GetPackedMode() uint32 {
+	return uint32(file.PackedMode)
+}
+
 // GetBytesReal implements FalloutFile
-func (file *falloutFileV2) GetBytesReal(_ io.ReadSeeker) (bytes []byte, err error) {
-	return nil, nil
+func (file *falloutFileV2) GetBytesReal(stream io.ReadSeeker) (bytesReal []byte, err error) {
+	file.seek(stream, file)
+
+	// TODO: switch to different reader
+	var bytesPacked []byte
+	if bytesPacked, err = file.GetBytesPacked(stream); err != nil {
+		return nil, err
+	}
+	var bytesPackedReader = bytes.NewReader(bytesPacked)
+
+	var zstream io.ReadCloser
+	if zstream, err = zlib.NewReader(bytesPackedReader); err != nil {
+		return nil, err
+	}
+	defer zstream.Close()
+
+	if bytesReal, err = io.ReadAll(zstream); err != nil {
+		return nil, err
+	}
+
+	// Quickly discard obviously incorrect data
+	if int64(len(bytesReal)) != file.GetSizeReal() {
+		return nil, fmt.Errorf("%s[2] decompressed size mismatch: have(%d) != want(%d)", errPackage, len(bytesReal), file.GetSizeReal())
+	}
+
+	return bytesReal, nil
 }
 
 // GetBytesPacked implements FalloutFile
-func (file *falloutFileV2) GetBytesPacked(_ io.ReadSeeker) (bytes []byte, err error) {
-	return nil, nil
+func (file *falloutFileV2) GetBytesPacked(stream io.ReadSeeker) ([]byte, error) {
+	return file.getBytesPacked(stream, file)
 }
 
 // GetDbg implements FalloutFile

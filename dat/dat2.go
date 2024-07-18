@@ -12,7 +12,7 @@ import (
 )
 
 type falloutDatV2 struct {
-	FilesCount uint32 // DAT2: offset: EOF - TreeSize - 8
+	FilesCount uint32 // DAT2: offset: EOF - SizeTree - 8
 	SizeTree   uint32 // DAT2: offset: EOF - 8
 	SizeDat    uint32 // DAT2: offset: EOF - 4
 
@@ -30,27 +30,18 @@ type falloutDirV2 struct {
 }
 
 type falloutFileV2 struct {
-	Path         string // DAT2: len uint32, name [len]byte; HERE: converted to *nix path
-	CompressMode uint8  // DAT2
-	Index        uint16
-	SizeReal     uint32 // DAT2
-	SizePacked   uint32 // DAT2
-	Offset       uint32 // DAT2
+	falloutShared
+
+	Path       string // DAT2: len uint32, name [len]byte; HERE: converted to *nix path
+	PackedMode uint8  // DAT2
+	Index      uint16
+	SizeReal   uint32 // DAT2
+	SizePacked uint32 // DAT2
+	Offset     uint32 // DAT2
 
 	Dbg       dbg.Map
 	parentDir *falloutDirV2
 }
-
-/*
-var gzip = []byte{
-	//	0x1F, 0x8B, // gzipID1 gzipID2
-	0x08,                   // gzipDeflate
-	0x08,                   // flag
-	0x9F, 0xE8, 0xB7, 0x36, // ModTime
-	0x02, // ni
-	0x03, // OS
-}
-*/
 
 // readDat implements FalloutDat
 func (dat *falloutDatV2) readDat(stream io.ReadSeeker) (err error) {
@@ -97,13 +88,15 @@ func (dat *falloutDatV2) readDat(stream io.ReadSeeker) (err error) {
 
 	dat.Dbg.AddOffset("Offset:1:Tree", stream)
 
-	// 23140 = MASTER.DAT, Steam
+	// 0x5A64 = 23140 = MASTER.DAT, Steam
+	// 0x1BD0 = 7120  = CRITTER.DAT, Steam
 	if err = binary.Read(stream, binary.LittleEndian, &dat.FilesCount); err != nil {
 		return err
 	}
 
 	// DAT2 does not have a concept of directories, so it needs to be invented
 	// While reading, we use map[string]* for quick lookup, plus []string for keys/directories names
+	// which will be sorted later
 
 	var (
 		dirsMap     = make(map[string]*falloutDirV2)
@@ -153,14 +146,6 @@ func (dat *falloutDatV2) readDat(stream io.ReadSeeker) (err error) {
 		dat.Dirs[idx] = dirsMap[dirNameUpper]
 	}
 
-	/*
-		dat.Dbg["DAT2:0:FilesCount"] = dat.FilesCount
-		dat.Dbg["DAT2:1:TreeSize"] = dat.TreeSize
-		dat.Dbg["DAT2:2:TotalSize"] = dat.DataSize
-
-		dat.Dbg.Dump("", "", nil)
-	*/
-
 	return nil
 }
 
@@ -175,7 +160,7 @@ func (dat *falloutDatV2) readFile(stream io.ReadSeeker, file *falloutFileV2) (er
 
 	file.Dbg.AddOffset("Offset:1:Info", stream)
 
-	if err = binary.Read(stream, binary.LittleEndian, &file.CompressMode); err != nil {
+	if err = binary.Read(stream, binary.LittleEndian, &file.PackedMode); err != nil {
 		return err
 	}
 

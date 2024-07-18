@@ -28,11 +28,13 @@ type falloutDirV1 struct {
 }
 
 type falloutFileV1 struct {
-	Name         string // DAT1: len byte, name [len]byte
-	CompressMode uint32 // DAT1
-	Offset       uint32 // DAT1
-	SizeReal     uint32 // DAT1
-	SizePacked   uint32 // DAT1
+	falloutShared
+
+	Name       string // DAT1: len byte, name [len]byte
+	PackedMode uint32 // DAT1
+	Offset     uint32 // DAT1
+	SizeReal   uint32 // DAT1
+	SizePacked uint32 // DAT1
 
 	Dbg       dbg.Map
 	parentDir *falloutDirV1
@@ -157,20 +159,20 @@ func (dat *falloutDatV1) readFile(stream io.ReadSeeker, file *falloutFileV1) (er
 
 	file.Dbg.AddOffset("Offset:1:Info", stream)
 
-	if err = binary.Read(stream, binary.BigEndian, &file.CompressMode); err != nil {
+	if err = binary.Read(stream, binary.BigEndian, &file.PackedMode); err != nil {
 		return err
 	}
 
-	switch file.CompressMode {
+	switch file.PackedMode {
 	case lzss.FalloutCompressStore:
 		// 0x10 is used in db.c as one of values, but so far haven't seen it in wild
-		return fmt.Errorf("%s compress mode [0x%X=%d] not implemented yet", errPrefix, file.CompressMode, file.CompressMode)
+		return fmt.Errorf("%s PackedMode not implemented (yet?) [0x%X=%d]", errPrefix, file.PackedMode, file.PackedMode)
 	case lzss.FalloutCompressNone:
 		//
 	case lzss.FalloutCompressLZSS:
 		//
 	default:
-		return fmt.Errorf("%s unknown compression mode [0x%X=%d]", errPrefix, file.CompressMode, file.CompressMode)
+		return fmt.Errorf("%s unknown PackedMode [0x%X=%d]", errPrefix, file.PackedMode, file.PackedMode)
 	}
 
 	if err = binary.Read(stream, binary.BigEndian, &file.Offset); err != nil {

@@ -53,30 +53,24 @@ func doList(_ *cobra.Command, datFile dat.FalloutDat) (err error) {
 
 		for _, file := range dir.GetFiles() {
 			var (
-				pack string
+				pack string = "none"
 				save int64
 				perc uint64 = 100
 			)
 
-			if datFile.GetGame() == 1 {
-				switch file.GetCompressMode() {
-				case lzss.FalloutCompressStore:
-					pack = "store"
-				case lzss.FalloutCompressNone:
-					pack = "none"
-				case lzss.FalloutCompressLZSS:
-					pack = "lzss"
-				default:
-					pack = fmt.Sprintf("(%d)", file.GetCompressMode())
-				}
-			} else if datFile.GetGame() == 2 {
-				switch file.GetCompressMode() {
-				case 0:
-					pack = "none"
+			if file.GetPacked() {
+				switch datFile.GetGame() {
 				case 1:
+					switch file.GetPackedMode() {
+					case lzss.FalloutCompressStore:
+						pack = "store"
+					case lzss.FalloutCompressLZSS:
+						pack = "lzss"
+					default:
+						pack = fmt.Sprintf("(%d)", file.GetPackedMode())
+					}
+				case 2:
 					pack = "pack"
-				default:
-					pack = fmt.Sprintf("(%d)", file.GetCompressMode())
 				}
 			}
 

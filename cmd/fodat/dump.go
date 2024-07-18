@@ -15,7 +15,7 @@ import (
 func init() {
 	var cmd = &cobra.Command{
 		Use:   "dump [dat file]",
-		Short: "Dump DAT file data (only DAT1 supported right now)",
+		Short: "Dump DAT file data",
 
 		GroupID: app.GroupID,
 		Args:    cobra.ExactArgs(1), // TODO: allow multiple files
@@ -42,10 +42,10 @@ func argDump(arg *cobra.Command, args []string) (err error) {
 		return err
 	}
 
-	return doDump(arg, datFile)
+	return doDump(arg, datFile, args[0])
 }
 
-func doDump(_ *cobra.Command, datFile dat.FalloutDat) (err error) {
+func doDump(_ *cobra.Command, datFile dat.FalloutDat, datName string) (err error) {
 	var sizeHuman = func(total int64) string {
 		const unit int64 = 1024
 		if total < unit {
@@ -83,7 +83,7 @@ func doDump(_ *cobra.Command, datFile dat.FalloutDat) (err error) {
 
 	datFile.FillDbg()
 
-	fmt.Printf("DAT%d\n", datFile.GetGame())
+	fmt.Printf("DAT%d [%s]\n", datFile.GetGame(), datName)
 	datFile.GetDbg().Dump("", "", printVal)
 
 	for _, dir := range datFile.GetDirs() {

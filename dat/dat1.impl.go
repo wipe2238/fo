@@ -1,6 +1,7 @@
 package dat
 
 import (
+	"fmt"
 	"io"
 	"strings"
 
@@ -59,7 +60,7 @@ func (dat *falloutDatV1) FillDbg() {
 
 		for idxFile, file := range dir.Files {
 			file.Dbg["DAT1:1:Name"] = file.Name
-			file.Dbg["DAT1:2:CompressMode"] = file.CompressMode
+			file.Dbg["DAT1:2:PackedMode"] = file.PackedMode
 			file.Dbg["DAT1:3:Offset"] = file.Offset
 			file.Dbg["DAT1:4:SizeReal"] = file.SizeReal
 			file.Dbg["DAT1:5:SizePacked"] = file.SizePacked
@@ -124,6 +125,11 @@ func (dir *falloutDirV1) GetDbg() dbg.Map {
 // FalloutFile implementation
 //
 
+// GetParentDat implements FalloutFile
+func (file *falloutFileV1) GetParentDat() FalloutDat {
+	return file.GetParentDir().GetParentDat()
+}
+
 // GetParentDir implements FalloutFile
 func (file *falloutFileV1) GetParentDir() FalloutDir {
 	return file.parentDir
@@ -143,11 +149,6 @@ func (file *falloutFileV1) GetOffset() int64 {
 	return int64(file.Offset)
 }
 
-// GetCompressMode implements FalloutFile
-func (file *falloutFileV1) GetCompressMode() uint32 {
-	return file.CompressMode
-}
-
 // GetOffset implements FalloutFile
 func (file *falloutFileV1) GetSizeReal() int64 {
 	return int64(file.SizeReal)
@@ -164,38 +165,42 @@ func (file *falloutFileV1) GetSizePacked() int64 {
 	return int64(file.SizePacked)
 }
 
-// GetFileLZSS returns converted file data, which can be passed to `lzss.FalloutLZSS“ functions
-func (file *falloutFileV1) getFileLZSS() lzss.FalloutFileLZSS {
-	return lzss.FalloutFileLZSS{
-		Offset:       file.Offset,
-		CompressMode: file.CompressMode,
-		SizeReal:     file.SizeReal,
-		SizePacked:   file.SizePacked,
+// GetPacked implements FalloutFile
+func (file *falloutFileV1) GetPacked() bool {
+	return file.PackedMode != lzss.FalloutCompressNone
+}
+
+// GetPackedMode implements FalloutFile
+func (file *falloutFileV1) GetPackedMode() uint32 {
+	return file.PackedMode
+}
+
+// LZSS returns file data converted to struct used by `compress/lzss` package
+func (file *falloutFileV1) LZSS(stream io.ReadSeeker) lzss.FalloutFile {
+	return lzss.FalloutFile{
+		Stream:       stream,
+		Offset:       file.GetOffset(),
+		SizePacked:   file.GetSizePacked(),
+		CompressMode: file.GetPackedMode(),
 	}
 }
 
 // GetBytesReal implements FalloutFile
-func (file *falloutFileV1) GetBytesReal(stream io.ReadSeeker) (out []byte, err error) {
-	if out, err = lzss.Fallout1.DecompressFile(stream, file.getFileLZSS()); err != nil {
+func (file *falloutFileV1) GetBytesReal(stream io.ReadSeeker) (bytesReal []byte, err error) {
+	if bytesReal, err = file.LZSS(stream).Decompress(); err != nil {
 		return nil, err
 	}
 
-	return out, nil
+	// Quickly discard obviously incorrect data
+	if int64(len(bytesReal)) != file.GetSizeReal() {
+		return nil, fmt.Errorf("%s[1] decompressed size mismatch: have(%d) != want(%d)", errPackage, len(bytesReal), file.GetSizeReal())
+	}
+
+	return bytesReal, nil
 }
 
-func (file *falloutFileV1) GetBytesPacked(stream io.ReadSeeker) (out []byte, err error) {
-	// seekFile() sets stream position to file offset, plus some additional checks
-	// called early to not waste time initializing stuff for stream which can't be used
-	if err = seekFile(stream, file); err != nil {
-		return nil, err
-	}
-
-	out = make([]byte, file.GetSizePacked())
-	if _, err = stream.Read(out); err != nil {
-		return nil, err
-	}
-
-	return out, nil
+func (file *falloutFileV1) GetBytesPacked(stream io.ReadSeeker) ([]byte, error) {
+	return file.getBytesPacked(stream, file)
 }
 
 func (file *falloutFileV1) GetDbg() dbg.Map {

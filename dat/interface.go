@@ -46,15 +46,17 @@ type FalloutDir interface {
 //
 // NOTE: Unstable interface
 type FalloutFile interface {
+	GetParentDat() FalloutDat
 	GetParentDir() FalloutDir
 
 	GetName() string // returns base name (FILENAME.EXT)
 	GetPath() string // returns full path (DIR/NAME/FILENAME.EXT)
 
 	GetOffset() int64
-	GetCompressMode() uint32
 	GetSizeReal() int64
 	GetSizePacked() int64
+	GetPacked() bool
+	GetPackedMode() uint32
 
 	GetBytesReal(io.ReadSeeker) ([]byte, error)
 	GetBytesPacked(io.ReadSeeker) ([]byte, error)
@@ -103,22 +105,4 @@ func Fallout2(stream io.ReadSeeker) (dat2 FalloutDat, err error) {
 	}
 
 	return dat2, nil
-}
-
-//
-
-// Should be used by DATx implementation before decompression
-func seekFile(stream io.ReadSeeker, file FalloutFile) (err error) {
-	// set stream to file end position
-	// make sure stream won't EOF in a middle of reading
-	if _, err = stream.Seek((file.GetOffset() + file.GetSizePacked()), io.SeekStart); err != nil {
-		return err
-	}
-
-	// set stream to file start position
-	if _, err = stream.Seek(file.GetOffset(), io.SeekStart); err != nil {
-		return err
-	}
-
-	return nil
 }
