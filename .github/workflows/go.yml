@@ -25,7 +25,6 @@ jobs:
   runs-on: ${{ matrix.os }}
   outputs:
    go-version: ${{ steps.setup-go.outputs.go-version }}
-
   strategy:
    fail-fast: false
    matrix:
@@ -53,7 +52,8 @@ jobs:
   strategy:
    fail-fast: false
    matrix:
-    os: [ubuntu-latest, windows-latest]
+    os:   [ubuntu-latest, windows-latest]
+    file: [makefile, maketest]
 
   steps:
 
@@ -67,7 +67,7 @@ jobs:
 
   - run: go version
 
-  - run: go generate makefile.go
+  - run: go generate ${{ matrix.file }}.go
 
  Test:
   needs: Build
