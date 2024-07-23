@@ -45,7 +45,7 @@ type falloutFileV2 struct {
 
 // readDat implements FalloutDat
 func (dat *falloutDatV2) readDat(stream io.ReadSeeker) (err error) {
-	const errPrefix = errPackage + "readDat(V2)"
+	const errPrefix = errPackage + "readDat(2)"
 
 	dat.Dbg = make(dbg.Map)
 	dat.Dirs = make([]*falloutDirV2, 0)
@@ -150,6 +150,8 @@ func (dat *falloutDatV2) readDat(stream io.ReadSeeker) (err error) {
 }
 
 func (dat *falloutDatV2) readFile(stream io.ReadSeeker, file *falloutFileV2) (err error) {
+	//const errPrefix = errPackage + "readFile(2)"
+
 	file.Dbg.AddOffset("Offset:0:Path", stream)
 	if file.Path, err = dat.readString(stream); err != nil {
 		return err

@@ -64,7 +64,9 @@ func (lzss LZSS) Decompress(reader io.Reader, size int64) (output []byte, err er
 
 		if (flags & uint16(0x0100)) == 0 {
 			// @Flag
-			// Read FL byte on very first loop, and every 9th loop after that
+			// Read FL on very first loop, and every 9th loop after that
+
+			// FL, flags
 			// No need for `size` check here, it's done naturally by `for`
 			if _, err = reader.Read(tmp); err == nil {
 				size--

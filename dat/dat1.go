@@ -42,12 +42,16 @@ type falloutFileV1 struct {
 
 // readDat implements FalloutDat
 func (dat *falloutDatV1) readDat(stream io.ReadSeeker) (err error) {
-	const errPrefix = errPackage + "readDat(V1)"
+	const errPrefix = errPackage + "readDat(1)"
 
 	dat.Dbg = make(dbg.Map)
 	dat.Dbg.AddOffset("Offset:0:Info", stream)
 	if err = binary.Read(stream, binary.BigEndian, &dat.DirsCount); err != nil {
 		return err
+	}
+
+	if dat.DirsCount < 1 {
+		return fmt.Errorf("%s DirsCount(%d) < 1", errPrefix, dat.DirsCount)
 	}
 
 	for idx := range dat.Header {
@@ -67,14 +71,14 @@ func (dat *falloutDatV1) readDat(stream io.ReadSeeker) (err error) {
 		break
 	// errors
 	case 0:
-		// maybe it should be a warning?
-		return fmt.Errorf("%s header[0] = 0 %+v", errPrefix, dat.Header)
+		return fmt.Errorf("%s header[0] = 0, %s", errPrefix, dbg.Fmt(" ", dat.Header))
 	default:
-		return fmt.Errorf("%s unknown header[0] [0x%X 0x%X 0x%X] %+v", errPrefix, dat.Header[0], dat.Header[1], dat.Header[2], dat.Header)
+		// ignore?
+		return fmt.Errorf("%s header[0] = unknown, %s", errPrefix, dbg.Fmt(" ", dat.Header))
 	}
 
 	if dat.Header[1] != 0 {
-		return fmt.Errorf("%s invalid header[1] 0x%X %#v", errPrefix, dat.Header[1], dat.Header)
+		return fmt.Errorf("%s header[1] != 0, %s", errPrefix, dbg.Fmt(" ", dat.Header))
 	}
 
 	//
@@ -115,6 +119,8 @@ func (dat *falloutDatV1) readDat(stream io.ReadSeeker) (err error) {
 }
 
 func (dat *falloutDatV1) readDir(stream io.ReadSeeker, dir *falloutDirV1) (err error) {
+	//const errPrefix = errPackage + "readDir(1)"
+
 	dir.Dbg = make(dbg.Map)
 	dir.Dbg.AddOffset("Offset:0:Info", stream)
 
@@ -122,7 +128,7 @@ func (dat *falloutDatV1) readDir(stream io.ReadSeeker, dir *falloutDirV1) (err e
 		return err
 	}
 
-	// Unknown[1] always 0x10, probably obsolete file entry size, which (excluding)
+	// Unknown[1] always 0x10
 	for idx := range dir.Header {
 		if err = binary.Read(stream, binary.BigEndian, &dir.Header[idx]); err != nil {
 			return err
@@ -149,7 +155,7 @@ func (dat *falloutDatV1) readDir(stream io.ReadSeeker, dir *falloutDirV1) (err e
 }
 
 func (dat *falloutDatV1) readFile(stream io.ReadSeeker, file *falloutFileV1) (err error) {
-	var errPrefix = errPackage + "readFile(V1," + file.GetPath() + ")"
+	const errPrefix = errPackage + "readFile(1)"
 
 	file.Dbg.AddOffset("Offset:0:Name", stream)
 

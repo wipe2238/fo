@@ -1,6 +1,7 @@
 package dat
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -447,43 +448,30 @@ func TestExtracted(t *testing.T) {
 			// TODO: simplify when/if .dat editing is possible
 
 			var (
-				err                       error
-				fileReal                  = filepath.Join(filepath.Dir(filePacked), "Real")
-				bytesOsReal, bytesDatReal []byte
-				osFilePacked              *os.File
-				fileInfo                  os.FileInfo
-				isFallout1                = strings.Contains(filePacked, "fallout1")
+				err          error
+				fileReal     = filepath.Join(filepath.Dir(filePacked), "Real")
+				bytesDatReal []byte
+				isFallout1   = strings.Contains(filePacked, "fallout1")
+				loader       *falloutFileLoader
 			)
 
-			bytesOsReal, err = os.ReadFile(fileReal)
-			must.NoError(t, err)
-
-			osFilePacked, err = os.Open(filePacked)
-			must.NoError(t, err)
-			defer osFilePacked.Close()
-
-			fileInfo, err = osFilePacked.Stat()
-			must.NoError(t, err)
-
-			var file FalloutFile
 			if isFallout1 {
-				file = new(falloutFileV1)
-				file.(*falloutFileV1).PackedMode = lzss.FalloutCompressLZSS
-				file.(*falloutFileV1).SizePacked = uint32(fileInfo.Size())
-				file.(*falloutFileV1).SizeReal = uint32(len(bytesOsReal))
+				loader = newLoader(1)
+				loader.FalloutFile.(*falloutFileV1).PackedMode = lzss.FalloutCompressLZSS
 			} else {
-				file = new(falloutFileV2)
-				file.(*falloutFileV2).PackedMode = 1
-				file.(*falloutFileV2).SizePacked = uint32(fileInfo.Size())
-				file.(*falloutFileV2).SizeReal = uint32(len(bytesOsReal))
+				loader = newLoader(2)
+				loader.FalloutFile.(*falloutFileV2).PackedMode = 1
 			}
 
-			bytesDatReal, err = file.GetBytesReal(osFilePacked)
+			// both files are needed to set inner `FalloutFile.Size*`
+			err = loader.loadFiles(fileReal, filePacked)
+			must.NoError(t, err)
+
+			bytesDatReal, err = loader.GetBytesReal(bytes.NewReader(loader.DataPacked))
 			test.NoError(t, err)
 
-			test.SliceEqFunc(t, bytesOsReal, bytesDatReal, func(a, b byte) bool { return a == b })
+			test.SliceEqFunc(t, loader.DataReal, bytesDatReal, func(a, b byte) bool { return a == b })
 		})
-
 	}
 }
 

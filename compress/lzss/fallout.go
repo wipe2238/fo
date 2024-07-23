@@ -17,14 +17,15 @@ const (
 type FalloutFile struct {
 	// Stream containing compressed file data
 	//
-	// All `FalloutFile` functions keep `Stream` position unchanged, as long there were no errors
+	// All `FalloutFile` functions keep `Stream` position unchanged,
+	// as long there were no errors
 	Stream io.ReadSeeker
 
 	// File data offset;
 	// same as in DAT1 file entry
 	Offset int64
 
-	// Size of compressed data
+	// Size of compressed data in bytes
 	//
 	// DAT1 file entry sets it to 0 for uncompressed files;
 	// in that case, uncompressed size should be used instead
@@ -32,14 +33,14 @@ type FalloutFile struct {
 
 	// Compression mode
 	//
-	// Must be set to one of FalloutCompress* constants;
+	// Must be set to one of `FalloutCompress*` constants;
 	// same as in DAT1 file entry
 	CompressMode uint32
 }
 
 // Decompress returns slice of bytes
 //
-// Note that this function can
+// Note that this function can handle uncompressed data
 func (file FalloutFile) Decompress() (bytes []byte, err error) {
 	var streamPos int64
 
@@ -178,7 +179,7 @@ func (file FalloutFile) ReadBlocks() (blocksBytes [][]byte, err error) {
 // ReadBlocksSize returns a slice containing compressed file blocks sizes
 func (file FalloutFile) ReadBlocksSize() (blocks []int64, err error) {
 	// Note that this function is mostly for convenience, when user wants detailed info about files
-	// It could easily be merged with DecompressFile() and simplified to save on LOCs
+	// It could easily be merged with DecompressFile() and simplified
 
 	var streamPos int64
 
@@ -208,6 +209,7 @@ func (file FalloutFile) ReadBlocksSize() (blocks []int64, err error) {
 
 		var sizeBlockReal = min(int64(math.Abs(float64(sizeBlock))), sizePacked)
 
+		// Skip block data
 		if _, err = file.Stream.Seek(sizeBlockReal, io.SeekCurrent); err == nil {
 			sizePacked -= sizeBlockReal
 		} else {
