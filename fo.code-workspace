@@ -15,7 +15,14 @@
         "editor.formatOnSave": true,
         "editor.formatOnPaste": true,
         "todo-tree.filtering.excludeGlobs": [
-            "bin/**"
+            "bin/**",
+            "**/testdata/**"
         ],
+    },
+    "extensions": {
+        "recommendations": [
+            "golang.go",
+            "gruntfuggly.todo-tree"
+        ]
     }
 }
