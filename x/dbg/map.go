@@ -9,11 +9,17 @@ import (
 
 type Map map[string]any
 
+const errPackage = "fo/x/dbg:"
+
 //
 
-func (dbg Map) AddOffset(name string, stream io.ReadSeeker) (err error) {
+func (dbg Map) AddOffset(name string, stream io.Seeker) (err error) {
+	return dbg.AddOffsetSeek(name, stream, 0, io.SeekCurrent)
+}
+
+func (dbg Map) AddOffsetSeek(name string, stream io.Seeker, offset int64, whence int) (err error) {
 	var pos int64
-	if pos, err = stream.(io.Seeker).Seek(0, io.SeekCurrent); err != nil {
+	if pos, err = stream.Seek(offset, whence); err != nil {
 		return err
 	}
 
@@ -22,30 +28,30 @@ func (dbg Map) AddOffset(name string, stream io.ReadSeeker) (err error) {
 	return nil
 }
 
-func (dbg Map) AddSize(name string, keyBegin string, keyEnd string) {
+func (dbg Map) AddSize(name string, keyBegin string, keyEnd string) (err error) {
 	var (
 		begin int64
 		end   int64
 		ok    bool
 	)
 
-	// FIXME: return error instead of panic
-
 	begin, ok = dbg[keyBegin].(int64)
 	if !ok {
-		panic(fmt.Sprintf("Cannot AddSize(%s): keybegin(%s) must be int64", name, keyBegin))
+		return fmt.Errorf("%s keybegin(%s) must be int64", errPackage, keyBegin)
 	}
 
 	end, ok = dbg[keyEnd].(int64)
 	if !ok {
-		panic(fmt.Sprintf("Cannot AddSize(%s): keyEnd(%s) must be int64", name, keyEnd))
+		return fmt.Errorf("%s keyEnd(%s) must be int64", errPackage, keyEnd)
 	}
 
 	if begin > end {
-		panic(fmt.Sprintf("AddSize(%s) keyBegin(%s=%d) > keyEnd(%s=%d)", name, keyBegin, begin, keyEnd, end))
+		return fmt.Errorf("%s keyBegin(%s = %d) > keyEnd(%s = %d)", errPackage, keyBegin, begin, keyEnd, end)
 	}
 
 	dbg[name] = end - begin
+
+	return nil
 }
 
 //
@@ -90,30 +96,18 @@ func (dbg Map) ValsTypeMaxLen(keysPrefix string) (length int) {
 	return length
 }
 
-// KeysMaxLenStr returns result of KeysMaxLen() as string.
-// Used when creating format string
-//
-// Example: `fmt.Sprintf("%-" + myap.KeysMaxLenStr("prefix") + "s", key)“
-func (dbg Map) KeysMaxLenStr(keysPrefix string) string {
-	return fmt.Sprintf("%d", dbg.KeysMaxLen(keysPrefix))
-}
-
-// ValsTypeMaxLenStr returns result ValsTypeMaxLen() as string
-func (dbg Map) ValsTypeMaxLenStr(keysPrefix string) string {
-	return fmt.Sprintf("%d", dbg.ValsTypeMaxLen(keysPrefix))
-}
-
 func (dbg Map) Dump(keysPrefix string, dumpPrefix string, callback func(string, any, string, string)) {
 	var (
-		keyN = dbg.KeysMaxLenStr(keysPrefix)
-		valN = dbg.ValsTypeMaxLenStr(keysPrefix)
+		keyN = dbg.KeysMaxLen(keysPrefix)
+		valN = dbg.ValsTypeMaxLen(keysPrefix)
 	)
 
 	for _, key := range dbg.Keys(keysPrefix) {
 		var (
-			val   = dbg[key]
-			left  = dumpPrefix + fmt.Sprintf("%-"+keyN+"s", key)
-			right = fmt.Sprintf("%-"+valN+"T", val) + " = " + Fmt(" = ", val)
+			val = dbg[key]
+
+			left  = dumpPrefix + fmt.Sprintf("%-*s", keyN, key)
+			right = fmt.Sprintf("%-*T", valN, val) + " = " + Fmt(" = ", val)
 		)
 
 		if callback != nil {

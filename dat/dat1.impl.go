@@ -3,10 +3,10 @@ package dat
 import (
 	"fmt"
 	"io"
+	"path"
 	"strings"
 
 	"github.com/wipe2238/fo/compress/lzss"
-	"github.com/wipe2238/fo/x/dbg"
 )
 
 //
@@ -29,60 +29,29 @@ func (dat *falloutDatV1) GetDirs() (dirs []FalloutDir) {
 	return dirs
 }
 
-func (dat *falloutDatV1) GetDbg() dbg.Map {
-	return dat.Dbg
-}
-
 func (dat *falloutDatV1) FillDbg() {
-	const strHeader = "DAT1:1:Header"
-
-	dat.Dbg["DAT1:0:DirsCount"] = dat.DirsCount
-	dat.Dbg[strHeader] = dat.Header
-
-	if dat.Dbg.KeysMaxLen("Offset:") > 0 {
-		dat.Dbg.AddSize("Size:Tree:Info", "Offset:0:Info", "Offset:1:DirsNames")
-		dat.Dbg.AddSize("Size:Tree:DirsNames", "Offset:1:DirsNames", "Offset:2:DirsData")
-		dat.Dbg.AddSize("Size:Tree:DirsData", "Offset:2:DirsData", "Offset:3:FilesContent")
-		dat.Dbg.AddSize("Size:Tree:Total", "Offset:0:Info", "Offset:3:FilesContent")
+	if dat.Dbg.KeysMaxLen("OffsetOLD:") > 0 {
+		dat.Dbg.AddSize("SizeOLD:Tree:Info", "OffsetOLD:0:Info", "OffsetOLD:1:DirsNames")
+		dat.Dbg.AddSize("SizeOLD:Tree:DirsNames", "OffsetOLD:1:DirsNames", "OffsetOLD:2:DirsData")
+		dat.Dbg.AddSize("SizeOLD:Tree:DirsData", "OffsetOLD:2:DirsData", "OffsetOLD:3:FilesContent")
+		dat.Dbg.AddSize("SizeOLD:Tree:Total", "OffsetOLD:0:Info", "OffsetOLD:3:FilesContent")
 	}
 
-	for idxDir, dir := range dat.Dirs {
-		dir.Dbg["DAT1:0:FilesCount"] = dir.FilesCount
-		dir.Dbg[strHeader] = dir.Header
-
-		dir.Dbg["Idx"] = uint16(idxDir)
-
-		if dir.Dbg.KeysMaxLen("Offset:") > 0 {
-			dir.Dbg.AddSize("Size:DirEntry:Info", "Offset:0:Info", "Offset:1:Files")
-			dir.Dbg.AddSize("Size:DirEntry:FilesData", "Offset:1:Files", "Offset:2:End")
-			dir.Dbg.AddSize("Size:DirEntry:Total", "Offset:0:Info", "Offset:2:End")
+	for _, dir := range dat.Dirs {
+		if dir.Dbg.KeysMaxLen("OffsetOLD:") > 0 {
+			dir.Dbg.AddSize("SizeOLD:DirEntry:Info", "OffsetOLD:0:Info", "OffsetOLD:1:Files")
+			dir.Dbg.AddSize("SizeOLD:DirEntry:FilesData", "OffsetOLD:1:Files", "OffsetOLD:2:End")
+			dir.Dbg.AddSize("SizeOLD:DirEntry:Total", "OffsetOLD:0:Info", "OffsetOLD:2:End")
 		}
 
-		for idxFile, file := range dir.Files {
-			file.Dbg["DAT1:1:Name"] = file.Name
-			file.Dbg["DAT1:2:PackedMode"] = file.PackedMode
-			file.Dbg["DAT1:3:Offset"] = file.Offset
-			file.Dbg["DAT1:4:SizeReal"] = file.SizeReal
-			file.Dbg["DAT1:5:SizePacked"] = file.SizePacked
-
-			if file.Dbg.KeysMaxLen("Offset:") > 0 {
-				file.Dbg.AddSize("Size:FileEntry:Name", "Offset:0:Name", "Offset:1:Info")
-				file.Dbg.AddSize("Size:FileEntry:Info", "Offset:1:Info", "Offset:2:End")
-				file.Dbg.AddSize("Size:FileEntry:Total", "Offset:0:Name", "Offset:2:End")
+		for _, file := range dir.Files {
+			if file.Dbg.KeysMaxLen("OffsetOLD:") > 0 {
+				file.Dbg.AddSize("SizeOLD:FileEntry:Name", "OffsetOLD:0:Name", "OffsetOLD:1:Info")
+				file.Dbg.AddSize("SizeOLD:FileEntry:Info", "OffsetOLD:1:Info", "OffsetOLD:2:End")
+				file.Dbg.AddSize("SizeOLD:FileEntry:Total", "OffsetOLD:0:Name", "OffsetOLD:2:End")
 			}
-
-			//
-
-			dbgAddContentStats(file, dir, dat)
-
-			file.Dbg["Idx:Dir"] = uint16(idxFile)
-			file.Dbg["Idx:Dat"] = uint16(dat.Dbg[(dbgContent+dbgAll+dbgCount)].(int64) - 1)
 		}
-
-		dbgCleanupContentStats(dir.Dbg)
 	}
-
-	dbgCleanupContentStats(dat.Dbg)
 }
 
 //
@@ -96,14 +65,14 @@ func (dir *falloutDirV1) GetParentDat() FalloutDat {
 
 // GetName implements FalloutDir
 func (dir *falloutDirV1) GetName() string {
-	var path = strings.Split(dir.Path, "\\")
-
-	return path[len(path)-1]
+	return path.Base(dir.GetPath())
 }
 
 // GetPath implements FalloutDir
-func (dir *falloutDirV1) GetPath() string {
-	return strings.ReplaceAll(dir.Path, `\`, "/")
+func (dir *falloutDirV1) GetPath() (dirPath string) {
+	dirPath = strings.ReplaceAll(dir.Path, `\`, "/") + "/"
+
+	return path.Dir(dirPath)
 }
 
 // GetFiles implements FalloutDir
@@ -115,10 +84,6 @@ func (dir *falloutDirV1) GetFiles() (files []FalloutFile) {
 	}
 
 	return files
-}
-
-func (dir *falloutDirV1) GetDbg() dbg.Map {
-	return dir.Dbg
 }
 
 //
@@ -141,7 +106,7 @@ func (file *falloutFileV1) GetName() string {
 }
 
 func (file *falloutFileV1) GetPath() string {
-	return strings.ReplaceAll(file.GetParentDir().GetPath()+"/"+file.GetName(), "\\", "/")
+	return file.GetParentDir().GetPath() + "/" + file.GetName()
 }
 
 // GetOffset implements FalloutFile
@@ -199,10 +164,7 @@ func (file *falloutFileV1) GetBytesReal(stream io.ReadSeeker) (bytesReal []byte,
 	return bytesReal, nil
 }
 
+// GetBytesPacked implements FalloutFile
 func (file *falloutFileV1) GetBytesPacked(stream io.ReadSeeker) ([]byte, error) {
 	return file.getBytesPacked(stream, file)
-}
-
-func (file *falloutFileV1) GetDbg() dbg.Map {
-	return file.Dbg
 }

@@ -213,7 +213,7 @@ func TestFunc(t *testing.T) {
 
 func TestImpl(testingT *testing.T) {
 	DoDat(testingT,
-		func(tb testing.TB, _ io.ReadSeeker, dat FalloutDat, _ string) {
+		func(tb testing.TB, stream io.ReadSeeker, dat FalloutDat, _ string) {
 			var (
 				dbg  = dat.GetDbg()
 				dirs = dat.GetDirs()
@@ -226,7 +226,13 @@ func TestImpl(testingT *testing.T) {
 			must.GreaterEq(tb, 1, game)
 			must.LessEq(tb, 2, game)
 
+			stream.Seek(0, io.SeekStart)
+			must.NoError(tb, dat.SetDbg(stream))
 			dat.FillDbg()
+
+			// TODO: dat.SetDbg(nil)
+			// TODO: SetDbg(nil) / SetDbg(stream) mixing
+
 			CheckDbgMap(tb, dat.GetDbg())
 		},
 		func(tb testing.TB, _ io.ReadSeeker, dir FalloutDir, _ string) {
@@ -250,12 +256,13 @@ func TestImpl(testingT *testing.T) {
 			test.NotNil(tb, files)
 
 			must.StrNotEqFold(tb, name, "")
-			test.StrNotContains(tb, name, "/")
 			test.StrNotContains(tb, name, `\`)
+			test.StrNotContains(tb, name, "/")
 
 			test.NotNil(tb, parent)
 
 			must.StrNotEqFold(tb, path, "")
+			must.StrNotEqFold(tb, path, "/")
 			test.StrNotContains(tb, path, `\`)
 			test.StrNotHasPrefix(tb, path, "/")
 			test.StrNotHasSuffix(tb, path, "/")
@@ -280,6 +287,9 @@ func TestImpl(testingT *testing.T) {
 				sizeReal   = file.GetSizeReal()
 			)
 
+			tb.Logf("name = %s", name)
+			tb.Logf("path = %s", path)
+
 			// always first
 
 			must.NotNil(tb, parentDat)
@@ -290,8 +300,8 @@ func TestImpl(testingT *testing.T) {
 			test.NotNil(tb, dbg)
 
 			must.StrNotEqFold(tb, name, "")
-			test.StrNotContains(tb, name, "/")
 			test.StrNotContains(tb, name, `\`)
+			test.StrNotContains(tb, name, "/")
 
 			if parentDat.GetGame() == 1 {
 				// HACK: dbg.Map in tests
@@ -317,6 +327,7 @@ func TestImpl(testingT *testing.T) {
 			must.StrNotEqFold(tb, path, "")
 			test.StrNotContains(tb, path, `\`)
 			test.StrNotHasPrefix(tb, path, "/")
+			test.StrNotHasSuffix(tb, path, "/")
 			test.StrHasPrefix(tb, parentDir.GetPath(), path)
 			test.EqOp(tb, path, parentDir.GetPath()+"/"+name)
 
@@ -346,6 +357,24 @@ func CheckDbgMap(tb testing.TB, dbgMap dbg.Map) {
 			test.NotEq(tb, left, "")
 			test.NotEq(tb, right, "")
 		})
+
+		// TODO: remove after FillDbg() -> SetDbg() transition
+
+		for _, prefix := range []string{"Offset", "Size", "Idx"} {
+			for _, keyOld := range dbgMap.Keys(prefix + "OLD:") {
+				var keyNew = strings.Replace(keyOld, prefix+"OLD:", prefix+":", 1)
+
+				tb.Logf("%s -> %s | %d -> %d", keyOld, keyNew, dbgMap[keyOld], dbgMap[keyNew])
+
+				must.MapContainsKey(tb, dbgMap, keyNew)
+				if dbgMap[keyNew] != dbgMap[keyOld] {
+					tb.Fatalf("%s(%d) != %s(%d)", keyNew, dbgMap[keyNew], keyOld, dbgMap[keyOld])
+					//defer os.Exit(1)
+					//break
+				}
+				must.EqOp(tb, dbgMap[keyOld], dbgMap[keyNew])
+			}
+		}
 	})
 }
 

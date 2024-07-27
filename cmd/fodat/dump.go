@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -36,8 +37,12 @@ func argDump(arg *cobra.Command, args []string) (err error) {
 	)
 
 	if osFile, datFile, err = dat.Open(args[0]); err == nil {
-		// `dump` doesn't need stream open to work
+		// after calling `SetDbg()`, stream is not used
+		osFile.Seek(0, io.SeekStart)
+		datFile.SetDbg(osFile)
 		osFile.Close()
+
+		datFile.FillDbg() // TODO: finish transition to SetDbg()
 	} else {
 		return err
 	}
@@ -61,8 +66,14 @@ func doDump(_ *cobra.Command, datFile dat.FalloutDat, datName string) (err error
 		return fmt.Sprintf("%.1f %cB", float64(total)/float64(div), "KMGTPE"[exp])
 	}
 
+	var showOLD = false
 	var printVal = func(key string, val any, left string, right string) {
 		var addSize bool
+
+		// TODO: deleteme after transitioning from FillDbg()
+		if !showOLD && strings.Contains(key, "OLD:") {
+			return
+		}
 
 		if strings.HasPrefix(key, "Size:") {
 			addSize = true
@@ -80,8 +91,6 @@ func doDump(_ *cobra.Command, datFile dat.FalloutDat, datName string) (err error
 
 		fmt.Println(left, "=", right)
 	}
-
-	datFile.FillDbg()
 
 	fmt.Printf("DAT%d [%s]\n", datFile.GetGame(), datName)
 	datFile.GetDbg().Dump("", "", printVal)

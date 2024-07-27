@@ -21,6 +21,11 @@ type FalloutDat interface {
 	GetDirs() []FalloutDir
 
 	GetDbg() dbg.Map
+
+	// Stream position must be set to start of DAT before calling this function
+	SetDbg(io.Seeker) error
+
+	// Deprecated: use `SetDbg()` insead
 	FillDbg()
 
 	// implementation details
@@ -40,6 +45,7 @@ type FalloutDir interface {
 	GetFiles() []FalloutFile
 
 	GetDbg() dbg.Map
+	SetDbg(io.Seeker) error
 }
 
 // FalloutFile represents a single file entry
@@ -62,15 +68,20 @@ type FalloutFile interface {
 	GetBytesPacked(io.ReadSeeker) ([]byte, error)
 
 	GetDbg() dbg.Map
+	SetDbg(io.Seeker) error
 }
 
 //
 
-// Open attempts to read unspecified file as DAT2 or DAT1 (in that order)
+// Open attempts to read .dat file with unspecified version as DAT2 or DAT1 (in that order)
+//
+// On success, returns opened stream (required for extracting files data) and `FalloutDat` object.
 func Open(filename string) (osFile *os.File, dat FalloutDat, err error) {
 	if osFile, err = os.Open(filename); err != nil {
 		return nil, nil, err
 	}
+
+	// TODO: add storing/restoring stream position
 
 	for _, reader := range [2]func(io.ReadSeeker) (FalloutDat, error){Fallout1, Fallout2} {
 		if dat, err = reader(osFile); err != nil {

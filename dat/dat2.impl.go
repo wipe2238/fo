@@ -5,9 +5,8 @@ import (
 	"compress/zlib"
 	"fmt"
 	"io"
+	"path"
 	"strings"
-
-	"github.com/wipe2238/fo/x/dbg"
 )
 
 //
@@ -30,37 +29,9 @@ func (dat *falloutDatV2) GetDirs() (dirs []FalloutDir) {
 	return dirs
 }
 
-// GetDbg implements FalloutDat
-func (dat *falloutDatV2) GetDbg() dbg.Map {
-	return dat.Dbg
-}
-
 // FillDbg implements FalloutDat
 func (dat *falloutDatV2) FillDbg() {
-	dat.Dbg["DAT2:0:FilesCount"] = dat.FilesCount
-	dat.Dbg["DAT2:1:SizeTree"] = dat.SizeTree
-	dat.Dbg["DAT2:2:SizeDat"] = dat.SizeDat
-
-	for idxDir, dir := range dat.Dirs {
-		dir.Dbg["Idx"] = uint16(idxDir)
-
-		for idxFile, file := range dir.Files {
-			file.Dbg["DAT2:0:Path"] = file.Path
-			file.Dbg["DAT2:1:PackedMode"] = file.PackedMode
-			file.Dbg["DAT2:2:SizeReal"] = file.SizeReal
-			file.Dbg["DAT2:3:SizePacked"] = file.SizePacked
-			file.Dbg["DAT2:4:Offset"] = file.Offset
-
-			file.Dbg["Idx:Dir"] = uint16(idxFile)
-			file.Dbg["Idx:Dat"] = file.Index
-
-			dbgAddContentStats(file, dir, dat)
-		}
-
-		dbgCleanupContentStats(dir.Dbg)
-	}
-
-	dbgCleanupContentStats(dat.Dbg)
+	// TODO: deleteme
 }
 
 //
@@ -74,13 +45,13 @@ func (dir *falloutDirV2) GetParentDat() FalloutDat {
 
 // GetName implements FalloutDir
 func (dir *falloutDirV2) GetName() string {
-	var path = strings.Split(dir.Path, "/")
-
-	return path[len(path)-1]
+	return path.Base(dir.GetPath())
 }
 
 // GetPath implements FalloutDir
 func (dir *falloutDirV2) GetPath() string {
+	// `dir.Path` always uses cleaned up *nix format, see `falloutDatV2.readDat()`
+
 	return dir.Path
 }
 
@@ -93,11 +64,6 @@ func (dir *falloutDirV2) GetFiles() (files []FalloutFile) {
 	}
 
 	return files
-}
-
-// GetDbg implements FalloutDir
-func (dir *falloutDirV2) GetDbg() dbg.Map {
-	return dir.Dbg
 }
 
 //
@@ -115,10 +81,10 @@ func (file *falloutFileV2) GetParentDir() FalloutDir {
 }
 
 // GetName implements FalloutFile
-func (file *falloutFileV2) GetName() string {
-	var path = strings.Split(file.Path, "/")
+func (file *falloutFileV2) GetName() (fileName string) {
+	fileName = strings.ReplaceAll(file.Path, `\`, "/")
 
-	return path[len(path)-1]
+	return path.Base(fileName)
 }
 
 // GetPath implements FalloutFile
@@ -131,10 +97,12 @@ func (file *falloutFileV2) GetOffset() int64 {
 	return int64(file.Offset)
 }
 
+// GetSizeReal implements FalloutFile
 func (file *falloutFileV2) GetSizeReal() int64 {
 	return int64(file.SizeReal)
 }
 
+// GetSizePacked implements FalloutFile
 func (file *falloutFileV2) GetSizePacked() int64 {
 	return int64(file.SizePacked)
 }
@@ -181,9 +149,4 @@ func (file *falloutFileV2) GetBytesReal(stream io.ReadSeeker) (bytesReal []byte,
 // GetBytesPacked implements FalloutFile
 func (file *falloutFileV2) GetBytesPacked(stream io.ReadSeeker) ([]byte, error) {
 	return file.getBytesPacked(stream, file)
-}
-
-// GetDbg implements FalloutFile
-func (file *falloutFileV2) GetDbg() dbg.Map {
-	return file.Dbg
 }

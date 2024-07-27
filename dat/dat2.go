@@ -32,7 +32,7 @@ type falloutDirV2 struct {
 type falloutFileV2 struct {
 	falloutShared
 
-	Path       string // DAT2: len uint32, name [len]byte; HERE: converted to *nix path
+	Path       string // DAT2: len uint32, name [len]byte
 	PackedMode uint8  // DAT2
 	Index      uint16
 	SizeReal   uint32 // DAT2
@@ -50,7 +50,7 @@ func (dat *falloutDatV2) readDat(stream io.ReadSeeker) (err error) {
 	dat.Dbg = make(dbg.Map)
 	dat.Dirs = make([]*falloutDirV2, 0)
 
-	dat.Dbg.AddOffset("Offset:0:Begin", stream)
+	dat.Dbg.AddOffset("OffsetOLD:0:Begin", stream)
 
 	var streamLength int64
 
@@ -62,13 +62,13 @@ func (dat *falloutDatV2) readDat(stream io.ReadSeeker) (err error) {
 		return fmt.Errorf("%s stream truncated, length < 12", errPrefix)
 	}
 
-	dat.Dbg.AddOffset("Offset:3:End", stream)
+	dat.Dbg.AddOffset("OffsetOLD:3:End", stream)
 
 	if _, err = stream.Seek(-8, io.SeekCurrent); err != nil {
 		return err
 	}
 
-	dat.Dbg.AddOffset("Offset:2:SizeData", stream)
+	dat.Dbg.AddOffset("OffsetOLD:2:SizeData", stream)
 
 	if err = binary.Read(stream, binary.LittleEndian, &dat.SizeTree); err != nil {
 		return err
@@ -86,7 +86,7 @@ func (dat *falloutDatV2) readDat(stream io.ReadSeeker) (err error) {
 		return err
 	}
 
-	dat.Dbg.AddOffset("Offset:1:Tree", stream)
+	dat.Dbg.AddOffset("OffsetOLD:1:Tree", stream)
 
 	// 0x5A64 = 23140 = MASTER.DAT, Steam
 	// 0x1BD0 = 7120  = CRITTER.DAT, Steam
@@ -118,7 +118,7 @@ func (dat *falloutDatV2) readDat(stream io.ReadSeeker) (err error) {
 		// Other than that, directory part of file.Path is completely ignored,
 		// and will always use parent directory path (see falloutFileV2.GetPath())
 
-		var dirPath = path.Dir(file.Path)
+		var dirPath = path.Dir(strings.ReplaceAll(file.Path, `\`, "/"))
 		var dirPathUpper = strings.ToUpper(dirPath)
 
 		var dir, ok = dirsMap[dirPathUpper]
@@ -130,12 +130,14 @@ func (dat *falloutDatV2) readDat(stream io.ReadSeeker) (err error) {
 
 			dirsMap[dirPathUpper] = dir
 			dirsMapKeys = append(dirsMapKeys, dirPathUpper)
-
 		}
 
 		file.Index = uint16(idxFile)
 		file.parentDir = dir
 		dir.Files = append(dir.Files, file)
+
+		// TODO: deleteme after switch to SetDbg()
+		file.Dbg["IdxOLD:Dat"] = file.Index
 	}
 
 	// Sort keys/directories names and fill dat.Dirs
@@ -152,15 +154,12 @@ func (dat *falloutDatV2) readDat(stream io.ReadSeeker) (err error) {
 func (dat *falloutDatV2) readFile(stream io.ReadSeeker, file *falloutFileV2) (err error) {
 	//const errPrefix = errPackage + "readFile(2)"
 
-	file.Dbg.AddOffset("Offset:0:Path", stream)
+	file.Dbg.AddOffset("OffsetOLD:0:Path", stream)
 	if file.Path, err = dat.readString(stream); err != nil {
 		return err
 	}
 
-	file.Path = strings.ReplaceAll(file.Path, `\`, "/")
-	file.Path, _ = strings.CutPrefix(file.Path, "/")
-
-	file.Dbg.AddOffset("Offset:1:Info", stream)
+	file.Dbg.AddOffset("OffsetOLD:1:Info", stream)
 
 	if err = binary.Read(stream, binary.LittleEndian, &file.PackedMode); err != nil {
 		return err
@@ -178,7 +177,7 @@ func (dat *falloutDatV2) readFile(stream io.ReadSeeker, file *falloutFileV2) (er
 		return err
 	}
 
-	file.Dbg.AddOffset("Offset:2:End", stream)
+	file.Dbg.AddOffset("OffsetOLD:2:End", stream)
 
 	return nil
 }
