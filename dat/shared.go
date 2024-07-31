@@ -19,6 +19,18 @@ func (falloutShared) seek(stream io.ReadSeeker, file FalloutFile) (err error) {
 	return nil
 }
 
+func (shared falloutShared) getBytesReal(stream io.ReadSeeker, file FalloutFile) (bytesReal []byte, err error) {
+	if bytesReal, err = shared.getBytesPacked(stream, file); err != nil {
+		return nil, err
+	}
+
+	if !file.GetPacked() {
+		return bytesReal, nil
+	}
+
+	return file.GetBytesUnpacked(bytesReal)
+}
+
 func (shared falloutShared) getBytesPacked(stream io.ReadSeeker, file FalloutFile) (bytes []byte, err error) {
 	if err = shared.seek(stream, file); err != nil {
 		return nil, err

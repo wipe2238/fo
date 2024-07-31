@@ -16,19 +16,17 @@ const errPackage = "fo/dat:"
 //
 // NOTE: Unstable interface
 type FalloutDat interface {
-	GetGame() uint8 // returns 1 or 2
+	GetGame() uint8
 
 	GetDirs() []FalloutDir
 
 	GetDbg() dbg.Map
 
-	// Stream position must be set to start of DAT before calling this function
+	// Stream position must be set to start of DAT file content before calling this function
 	SetDbg(io.Seeker) error
 
-	// Deprecated: use `SetDbg()` insead
+	// Deprecated: use `SetDbg()` instead
 	FillDbg()
-
-	// implementation details
 
 	readDat(stream io.ReadSeeker) error
 }
@@ -39,8 +37,8 @@ type FalloutDat interface {
 type FalloutDir interface {
 	GetParentDat() FalloutDat
 
-	GetName() string // returns base name (FILENAME.EXT)
-	GetPath() string // returns full path (DIR//NAME/FILENAME.EXT)
+	GetName() string // returns base name (NAME)
+	GetPath() string // returns full path (DIR//NAME)
 
 	GetFiles() []FalloutFile
 
@@ -66,6 +64,7 @@ type FalloutFile interface {
 
 	GetBytesReal(io.ReadSeeker) ([]byte, error)
 	GetBytesPacked(io.ReadSeeker) ([]byte, error)
+	GetBytesUnpacked([]byte) ([]byte, error)
 
 	GetDbg() dbg.Map
 	SetDbg(io.Seeker) error

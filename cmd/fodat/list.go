@@ -12,19 +12,19 @@ import (
 )
 
 func init() {
-	var cmd = &cobra.Command{
-		Use:   "list [dat file]",
+	var cmdList = &cobra.Command{
+		Use:   "list <dat file>",
 		Short: "List files in DAT file",
 
 		GroupID: app.GroupID,
 		Args:    cobra.ExactArgs(1), // TODO: allow multiple files
-		RunE:    func(cmd *cobra.Command, args []string) error { return argList(cmd, args) },
+		RunE:    runList,
 	}
 
-	app.AddCommand(cmd)
+	app.AddCommand(cmdList)
 }
 
-func argList(arg *cobra.Command, args []string) (err error) {
+func runList(cmdList *cobra.Command, args []string) (err error) {
 	// all todo/fixme/etc in here applies to every other arg as well
 
 	// FIXME: expose functionality to users
@@ -44,7 +44,7 @@ func argList(arg *cobra.Command, args []string) (err error) {
 		return err
 	}
 
-	return doList(arg, datFile)
+	return doList(cmdList, datFile)
 }
 
 func doList(_ *cobra.Command, datFile dat.FalloutDat) (err error) {

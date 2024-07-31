@@ -119,34 +119,31 @@ func (file *falloutFileV2) GetPackedMode() uint32 {
 
 // GetBytesReal implements FalloutFile
 func (file *falloutFileV2) GetBytesReal(stream io.ReadSeeker) (bytesReal []byte, err error) {
-	file.seek(stream, file)
-
-	// TODO: switch to different reader
-	var bytesPacked []byte
-	if bytesPacked, err = file.GetBytesPacked(stream); err != nil {
-		return nil, err
-	}
-	var bytesPackedReader = bytes.NewReader(bytesPacked)
-
-	var zstream io.ReadCloser
-	if zstream, err = zlib.NewReader(bytesPackedReader); err != nil {
-		return nil, err
-	}
-	defer zstream.Close()
-
-	if bytesReal, err = io.ReadAll(zstream); err != nil {
-		return nil, err
-	}
-
-	// Quickly discard obviously incorrect data
-	if int64(len(bytesReal)) != file.GetSizeReal() {
-		return nil, fmt.Errorf("%s[2] decompressed size mismatch: have(%d) != want(%d)", errPackage, len(bytesReal), file.GetSizeReal())
-	}
-
-	return bytesReal, nil
+	return file.getBytesReal(stream, file)
 }
 
 // GetBytesPacked implements FalloutFile
 func (file *falloutFileV2) GetBytesPacked(stream io.ReadSeeker) ([]byte, error) {
 	return file.getBytesPacked(stream, file)
+}
+
+func (file *falloutFileV2) GetBytesUnpacked(bytesPacked []byte) (bytesUnpacked []byte, err error) {
+	var bytesReader = bytes.NewReader(bytesPacked)
+
+	var zstream io.ReadCloser
+	if zstream, err = zlib.NewReader(bytesReader); err != nil {
+		return nil, err
+	}
+	defer zstream.Close()
+
+	if bytesUnpacked, err = io.ReadAll(zstream); err != nil {
+		return nil, err
+	}
+
+	// Quickly discard obviously incorrect data
+	if int64(len(bytesUnpacked)) != file.GetSizeReal() {
+		return nil, fmt.Errorf("%s[2] decompressed size mismatch: have(%d) != want(%d)", errPackage, len(bytesUnpacked), file.GetSizeReal())
+	}
+
+	return bytesUnpacked, nil
 }

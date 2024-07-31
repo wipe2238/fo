@@ -1,6 +1,7 @@
 package dat
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"path"
@@ -119,8 +120,6 @@ func (file *falloutFileV1) GetSizeReal() int64 {
 	return int64(file.SizeReal)
 }
 
-// GetSizePacked returns size of file block
-//
 // GetSizePacked implements FalloutFile
 func (file *falloutFileV1) GetSizePacked() int64 {
 	if file.SizePacked == 0 {
@@ -140,31 +139,31 @@ func (file *falloutFileV1) GetPackedMode() uint32 {
 	return file.PackedMode
 }
 
-// LZSS returns file data converted to struct used by `compress/lzss` package
-func (file *falloutFileV1) LZSS(stream io.ReadSeeker) lzss.FalloutFile {
-	return lzss.FalloutFile{
-		Stream:       stream,
-		Offset:       file.GetOffset(),
-		SizePacked:   file.GetSizePacked(),
-		CompressMode: file.GetPackedMode(),
-	}
-}
-
 // GetBytesReal implements FalloutFile
 func (file *falloutFileV1) GetBytesReal(stream io.ReadSeeker) (bytesReal []byte, err error) {
-	if bytesReal, err = file.LZSS(stream).Decompress(); err != nil {
-		return nil, err
-	}
-
-	// Quickly discard obviously incorrect data
-	if int64(len(bytesReal)) != file.GetSizeReal() {
-		return nil, fmt.Errorf("%s[1] decompressed size mismatch: have(%d) != want(%d)", errPackage, len(bytesReal), file.GetSizeReal())
-	}
-
-	return bytesReal, nil
+	return file.getBytesReal(stream, file)
 }
 
 // GetBytesPacked implements FalloutFile
 func (file *falloutFileV1) GetBytesPacked(stream io.ReadSeeker) ([]byte, error) {
 	return file.getBytesPacked(stream, file)
+}
+
+func (file *falloutFileV1) GetBytesUnpacked(bytesPacked []byte) (bytesUnpacked []byte, err error) {
+	var lzssFile = lzss.FalloutFile{
+		Stream:       bytes.NewReader(bytesPacked),
+		SizePacked:   file.GetSizePacked(),
+		CompressMode: file.GetPackedMode(),
+	}
+
+	if bytesUnpacked, err = lzssFile.Decompress(); err != nil {
+		return nil, err
+	}
+
+	// Quickly discard obviously incorrect data
+	if int64(len(bytesUnpacked)) != file.GetSizeReal() {
+		return nil, fmt.Errorf("%s[1] decompressed size mismatch: have(%d) != want(%d)", errPackage, len(bytesUnpacked), file.GetSizeReal())
+	}
+
+	return bytesUnpacked, nil
 }

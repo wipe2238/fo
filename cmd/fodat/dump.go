@@ -14,19 +14,19 @@ import (
 )
 
 func init() {
-	var cmd = &cobra.Command{
-		Use:   "dump [dat file]",
+	var cmdDump = &cobra.Command{
+		Use:   "dump <dat file>",
 		Short: "Dump DAT file data",
 
 		GroupID: app.GroupID,
 		Args:    cobra.ExactArgs(1), // TODO: allow multiple files
-		RunE:    func(cmd *cobra.Command, args []string) error { return argDump(cmd, args) },
+		RunE:    runDump,
 	}
 
-	app.AddCommand(cmd)
+	app.AddCommand(cmdDump)
 }
 
-func argDump(arg *cobra.Command, args []string) (err error) {
+func runDump(cmdDump *cobra.Command, args []string) (err error) {
 	if err = cmd.ResolveFilename(&args[0], "@"); err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func argDump(arg *cobra.Command, args []string) (err error) {
 		return err
 	}
 
-	return doDump(arg, datFile, args[0])
+	return doDump(cmdDump, datFile, args[0])
 }
 
 func doDump(_ *cobra.Command, datFile dat.FalloutDat, datName string) (err error) {

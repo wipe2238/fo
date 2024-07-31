@@ -388,8 +388,6 @@ func (dat *falloutDatV2) SetDbg(stream io.Seeker) (err error) {
 		return int(a.Index) - int(b.Index)
 	})
 
-	// Once files are in order,
-
 	for _, file := range files {
 		file.SetDbg(stream)
 	}
