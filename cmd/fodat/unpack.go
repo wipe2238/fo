@@ -62,24 +62,28 @@ func runUnpack(cmdUnpack *cobra.Command, args []string) (err error) {
 
 	var names []string
 	for idx := range args {
-		// args[2+] starting with `@` contains a list of files to extract
-		if idx >= 2 && strings.HasPrefix(args[idx], "@") {
-			var filelist = filepath.Clean(args[idx][1:])
-			if filelist == "" {
-				return fmt.Errorf("%s empty fileslist name argument(%d)", errUnpack, idx)
-			}
+		if idx >= 2 {
+			// filenames starting with `@` contains a list of files to unpack
+			if strings.HasPrefix(args[idx], "@") {
+				var filelist = filepath.Clean(args[idx][1:])
+				if filelist == "" {
+					return fmt.Errorf("%s empty fileslist name argument(%d)", errUnpack, idx)
+				}
 
-			var namesFilelist []string
-			if namesFilelist, err = cmd.ReadFileLines(filelist); err != nil {
-				return err
-			}
+				var namesFilelist []string
+				if namesFilelist, err = cmd.ReadFileLines(filelist); err != nil {
+					return err
+				}
 
-			names = append(names, namesFilelist...)
+				names = append(names, namesFilelist...)
+			} else {
+				names = append(names, args[idx])
+			}
 
 			continue
 		}
 
-		names = append(names, filepath.Clean(args[idx]))
+		args[idx] = filepath.Clean(args[idx])
 	}
 
 	// TODO: "*"
@@ -90,6 +94,7 @@ func runUnpack(cmdUnpack *cobra.Command, args []string) (err error) {
 	}
 
 	names = slices.Compact(names)
+	names = slices.Clip(names)
 
 	if osFile, datFile, err = dat.Open(args[0]); err != nil {
 		return err
@@ -100,7 +105,7 @@ func runUnpack(cmdUnpack *cobra.Command, args []string) (err error) {
 
 func doUnpack(osFile *os.File, datFile dat.FalloutDat, names []string, dirOutput string) (err error) {
 	if len(names) < 1 {
-		return nil
+		return fmt.Errorf("unpack: list of files to unpack is empty")
 	}
 
 	// removes duplicates and empty entries
