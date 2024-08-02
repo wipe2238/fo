@@ -41,8 +41,6 @@ func runDump(cmdDump *cobra.Command, args []string) (err error) {
 		osFile.Seek(0, io.SeekStart)
 		datFile.SetDbg(osFile)
 		osFile.Close()
-
-		datFile.FillDbg() // TODO: finish transition to SetDbg()
 	} else {
 		return err
 	}
@@ -66,14 +64,8 @@ func doDump(_ *cobra.Command, datFile dat.FalloutDat, datName string) (err error
 		return fmt.Sprintf("%.1f %cB", float64(total)/float64(div), "KMGTPE"[exp])
 	}
 
-	var showOLD = false
 	var printVal = func(key string, val any, left string, right string) {
 		var addSize bool
-
-		// TODO: deleteme after transitioning from FillDbg()
-		if !showOLD && strings.Contains(key, "OLD:") {
-			return
-		}
 
 		if strings.HasPrefix(key, "Size:") {
 			addSize = true

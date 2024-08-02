@@ -176,6 +176,7 @@ func DoDatFile(tb testing.TB, osFile *os.File, dat FalloutDat, source string,
 
 //------------------------------------------------------------------------------------------------//
 
+/*
 func TestFunc(t *testing.T) {
 	var err error
 	var fn = [2]func(io.ReadSeeker) (FalloutDat, error){Fallout1, Fallout2}
@@ -210,28 +211,47 @@ func TestFunc(t *testing.T) {
 		})
 	}
 }
+*/
 
 func TestImpl(testingT *testing.T) {
 	DoDat(testingT,
 		func(tb testing.TB, stream io.ReadSeeker, dat FalloutDat, _ string) {
 			var (
-				dbg  = dat.GetDbg()
+				err  error
+				_    = dat.GetDbg()
 				dirs = dat.GetDirs()
 				game = dat.GetGame()
 			)
-			test.NotNil(tb, dbg)
+
+			var mustDbg = func(mustFunc func(must.T, any, ...must.Setting)) {
+				mustFunc(tb, dat.GetDbg())
+
+				for _, dir := range dirs {
+					mustFunc(tb, dir.GetDbg())
+
+					for _, file := range dir.GetFiles() {
+						mustFunc(tb, file.GetDbg())
+					}
+				}
+			}
 
 			test.NotNil(tb, dirs)
 
 			must.GreaterEq(tb, 1, game)
 			must.LessEq(tb, 2, game)
 
-			stream.Seek(0, io.SeekStart)
-			must.NoError(tb, dat.SetDbg(stream))
-			dat.FillDbg()
+			_, err = stream.Seek(0, io.SeekStart)
+			must.NoError(tb, err)
 
-			// TODO: dat.SetDbg(nil)
-			// TODO: SetDbg(nil) / SetDbg(stream) mixing
+			// needs to be tested here,
+			// as neither `FalloutDir` or `FalloutFile` can use `SetDbg()` on their own
+			mustDbg(must.Nil)
+			must.NoError(tb, dat.SetDbg(stream))
+			mustDbg(must.NotNil)
+			must.NoError(tb, dat.SetDbg(nil))
+			mustDbg(must.Nil)
+			must.NoError(tb, dat.SetDbg(stream))
+			mustDbg(must.NotNil)
 
 			CheckDbgMap(tb, dat.GetDbg())
 		},
@@ -239,27 +259,24 @@ func TestImpl(testingT *testing.T) {
 			var (
 				parentDat = dir.GetParentDat()
 
-				dbg    = dir.GetDbg()
-				files  = dir.GetFiles()
-				name   = dir.GetName()
-				parent = dir.GetParentDat()
-				path   = dir.GetPath()
+				dbg   = dir.GetDbg()
+				files = dir.GetFiles()
+				name  = dir.GetName()
+				path  = dir.GetPath()
 			)
 			// always first
 
-			must.NotNil(tb, parentDat)
+			test.NotNil(tb, parentDat)
 
 			//
 
-			test.NotNil(tb, dbg)
+			test.NotNil(tb, dbg) // SetDbg() during FalloutDat callback
 
 			test.NotNil(tb, files)
 
 			must.StrNotEqFold(tb, name, "")
 			test.StrNotContains(tb, name, `\`)
 			test.StrNotContains(tb, name, "/")
-
-			test.NotNil(tb, parent)
 
 			must.StrNotEqFold(tb, path, "")
 			must.StrNotEqFold(tb, path, "/")
@@ -287,9 +304,6 @@ func TestImpl(testingT *testing.T) {
 				sizeReal   = file.GetSizeReal()
 			)
 
-			tb.Logf("name = %s", name)
-			tb.Logf("path = %s", path)
-
 			// always first
 
 			must.NotNil(tb, parentDat)
@@ -297,7 +311,7 @@ func TestImpl(testingT *testing.T) {
 
 			//
 
-			test.NotNil(tb, dbg)
+			test.NotNil(tb, dbg) // SetDbg() during FalloutDat callback
 
 			must.StrNotEqFold(tb, name, "")
 			test.StrNotContains(tb, name, `\`)
@@ -357,24 +371,6 @@ func CheckDbgMap(tb testing.TB, dbgMap dbg.Map) {
 			test.NotEq(tb, left, "")
 			test.NotEq(tb, right, "")
 		})
-
-		// TODO: remove after FillDbg() -> SetDbg() transition
-
-		for _, prefix := range []string{"Offset", "Size", "Idx"} {
-			for _, keyOld := range dbgMap.Keys(prefix + "OLD:") {
-				var keyNew = strings.Replace(keyOld, prefix+"OLD:", prefix+":", 1)
-
-				tb.Logf("%s -> %s | %d -> %d", keyOld, keyNew, dbgMap[keyOld], dbgMap[keyNew])
-
-				must.MapContainsKey(tb, dbgMap, keyNew)
-				if dbgMap[keyNew] != dbgMap[keyOld] {
-					tb.Fatalf("%s(%d) != %s(%d)", keyNew, dbgMap[keyNew], keyOld, dbgMap[keyOld])
-					//defer os.Exit(1)
-					//break
-				}
-				must.EqOp(tb, dbgMap[keyOld], dbgMap[keyNew])
-			}
-		}
 	})
 }
 

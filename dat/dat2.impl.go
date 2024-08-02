@@ -29,11 +29,6 @@ func (dat *falloutDatV2) GetDirs() (dirs []FalloutDir) {
 	return dirs
 }
 
-// FillDbg implements FalloutDat
-func (dat *falloutDatV2) FillDbg() {
-	// TODO: deleteme
-}
-
 //
 // FalloutDir implementation
 //

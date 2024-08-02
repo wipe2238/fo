@@ -106,6 +106,32 @@ func dbgCleanupContentStats(dbgMap dbg.Map) {
 	}
 }
 
+func dbgMakeOrNil(obj any, stream io.Seeker) dbg.Map {
+	if stream == nil {
+		switch fo := obj.(type) {
+		case FalloutDat:
+			for _, dir := range fo.GetDirs() {
+				dir.SetDbg(nil)
+			}
+
+		case FalloutDir:
+			for _, file := range fo.GetFiles() {
+				file.SetDbg(nil)
+			}
+
+		case FalloutFile:
+			//
+
+		default:
+			panic(fo)
+		}
+
+		return nil
+	}
+
+	return make(dbg.Map)
+}
+
 //
 // Fallout*V1
 //
@@ -117,7 +143,9 @@ func (dat *falloutDatV1) GetDbg() dbg.Map {
 
 // SetDbg implements FalloutDat
 func (dat *falloutDatV1) SetDbg(stream io.Seeker) (err error) {
-	// TODO: dat.Dbg = make(dbg.Map)
+	if dat.Dbg = dbgMakeOrNil(dat, stream); dat.Dbg == nil {
+		return nil
+	}
 
 	var streamPos int64
 	if streamPos, err = stream.Seek(0, io.SeekCurrent); err != nil {
@@ -202,7 +230,9 @@ func (dir *falloutDirV1) GetDbg() dbg.Map {
 
 // SetDbg implements FalloutDir
 func (dir *falloutDirV1) SetDbg(stream io.Seeker) (err error) {
-	// TODO: dir.Dbg = make(dbg.Map)
+	if dir.Dbg = dbgMakeOrNil(dir, stream); dir.Dbg == nil {
+		return nil
+	}
 
 	//
 	// DAT1
@@ -265,7 +295,9 @@ func (file *falloutFileV1) GetDbg() dbg.Map {
 
 // SetDbg implements FalloutFile
 func (file *falloutFileV1) SetDbg(stream io.Seeker) (err error) {
-	// TODO: file.Dbg = make(dbg.Map)
+	if file.Dbg = dbgMakeOrNil(file, stream); file.Dbg == nil {
+		return nil
+	}
 
 	dbgAddContentStats(file)
 
@@ -334,7 +366,9 @@ func (dat *falloutDatV2) GetDbg() dbg.Map {
 
 // SetDbg implements FalloutDat
 func (dat *falloutDatV2) SetDbg(stream io.Seeker) (err error) {
-	// TODO: dat.Dbg = make(dbg.Map)
+	if dat.Dbg = dbgMakeOrNil(dat, stream); dat.Dbg == nil {
+		return nil
+	}
 
 	var streamPos int64
 	if streamPos, err = stream.Seek(0, io.SeekCurrent); err != nil {
@@ -417,10 +451,15 @@ func (dir *falloutDirV2) GetDbg() dbg.Map {
 
 // SetDbg implements FalloutDir
 func (dir *falloutDirV2) SetDbg(stream io.Seeker) error {
-	dir.Dbg = make(dbg.Map)
+	if dir.Dbg = dbgMakeOrNil(dir, stream); dir.Dbg == nil {
+		return nil
+	}
 
-	for idxFile, file := range dir.Files {
-		file.Dbg["Idx:Dir"] = uint16(idxFile)
+	for idx, file := range dir.Files {
+		// called here instead of `falloutFileV2.SetDbg()`, which needs to run in specific order
+		dbgAddContentStats(file)
+
+		file.Dbg["Idx:Dir"] = uint16(idx)
 	}
 
 	dbgCleanupContentStats(dir.Dbg)
@@ -435,9 +474,11 @@ func (file *falloutFileV2) GetDbg() dbg.Map {
 
 // SetDbg implements FalloutFile
 func (file *falloutFileV2) SetDbg(stream io.Seeker) (err error) {
-	// TODO: file.Dbg = make(dbg.Map)
+	if file.Dbg = dbgMakeOrNil(file, stream); file.Dbg == nil {
+		return nil
+	}
 
-	dbgAddContentStats(file)
+	// dbgAddContentStats(file) is called by `falloutDirV2.SetDbg()`
 
 	//
 	// DAT2

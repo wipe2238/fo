@@ -30,31 +30,6 @@ func (dat *falloutDatV1) GetDirs() (dirs []FalloutDir) {
 	return dirs
 }
 
-func (dat *falloutDatV1) FillDbg() {
-	if dat.Dbg.KeysMaxLen("OffsetOLD:") > 0 {
-		dat.Dbg.AddSize("SizeOLD:Tree:Info", "OffsetOLD:0:Info", "OffsetOLD:1:DirsNames")
-		dat.Dbg.AddSize("SizeOLD:Tree:DirsNames", "OffsetOLD:1:DirsNames", "OffsetOLD:2:DirsData")
-		dat.Dbg.AddSize("SizeOLD:Tree:DirsData", "OffsetOLD:2:DirsData", "OffsetOLD:3:FilesContent")
-		dat.Dbg.AddSize("SizeOLD:Tree:Total", "OffsetOLD:0:Info", "OffsetOLD:3:FilesContent")
-	}
-
-	for _, dir := range dat.Dirs {
-		if dir.Dbg.KeysMaxLen("OffsetOLD:") > 0 {
-			dir.Dbg.AddSize("SizeOLD:DirEntry:Info", "OffsetOLD:0:Info", "OffsetOLD:1:Files")
-			dir.Dbg.AddSize("SizeOLD:DirEntry:FilesData", "OffsetOLD:1:Files", "OffsetOLD:2:End")
-			dir.Dbg.AddSize("SizeOLD:DirEntry:Total", "OffsetOLD:0:Info", "OffsetOLD:2:End")
-		}
-
-		for _, file := range dir.Files {
-			if file.Dbg.KeysMaxLen("OffsetOLD:") > 0 {
-				file.Dbg.AddSize("SizeOLD:FileEntry:Name", "OffsetOLD:0:Name", "OffsetOLD:1:Info")
-				file.Dbg.AddSize("SizeOLD:FileEntry:Info", "OffsetOLD:1:Info", "OffsetOLD:2:End")
-				file.Dbg.AddSize("SizeOLD:FileEntry:Total", "OffsetOLD:0:Name", "OffsetOLD:2:End")
-			}
-		}
-	}
-}
-
 //
 // FalloutDir implementation
 //

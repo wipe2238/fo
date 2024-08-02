@@ -22,11 +22,14 @@ type FalloutDat interface {
 
 	GetDbg() dbg.Map
 
-	// Stream position must be set to start of DAT file content before calling this function
+	// SetDbg adds various debug info
+	//
+	// If argument is `nil`, all data (including directories data) is cleared;
+	// otherwise data is collected starting from currect stream position
+	//
+	//  - stream must be set to same position it was when reading DAT file
+	//  - `cmd/fodat(dump)` can be used to display debug info
 	SetDbg(io.Seeker) error
-
-	// Deprecated: use `SetDbg()` instead
-	FillDbg()
 
 	readDat(stream io.ReadSeeker) error
 }
@@ -43,6 +46,10 @@ type FalloutDir interface {
 	GetFiles() []FalloutFile
 
 	GetDbg() dbg.Map
+
+	// SetDbg adds various debug info
+	//
+	// If argument is `nil`, all data (including files data) is cleared
 	SetDbg(io.Seeker) error
 }
 
@@ -67,6 +74,10 @@ type FalloutFile interface {
 	GetBytesUnpacked([]byte) ([]byte, error)
 
 	GetDbg() dbg.Map
+
+	// SetDbg adds various debug info
+	//
+	// If argument is `nil`, all data is cleared
 	SetDbg(io.Seeker) error
 }
 

@@ -44,8 +44,6 @@ type falloutFileV1 struct {
 func (dat *falloutDatV1) readDat(stream io.ReadSeeker) (err error) {
 	const errPrefix = errPackage + "readDat(1)"
 
-	dat.Dbg = make(dbg.Map)
-	dat.Dbg.AddOffset("OffsetOLD:0:Info", stream)
 	if err = binary.Read(stream, binary.BigEndian, &dat.DirsCount); err != nil {
 		return err
 	}
@@ -85,13 +83,10 @@ func (dat *falloutDatV1) readDat(stream io.ReadSeeker) (err error) {
 	// directories list
 	//
 
-	dat.Dbg.AddOffset("OffsetOLD:1:DirsNames", stream)
-
 	dat.Dirs = make([]*falloutDirV1, dat.DirsCount)
 
 	for idx := range dat.Dirs {
 		dat.Dirs[idx] = new(falloutDirV1)
-		dat.Dirs[idx].Dbg = make(dbg.Map)
 		dat.Dirs[idx].parentDat = dat
 
 		// do not introduce anything here which could change length of dir.Path
@@ -105,24 +100,17 @@ func (dat *falloutDatV1) readDat(stream io.ReadSeeker) (err error) {
 	// directories files
 	//
 
-	dat.Dbg.AddOffset("OffsetOLD:2:DirsData", stream)
-
 	for _, dir := range dat.Dirs {
 		if err = dat.readDir(stream, dir); err != nil {
 			return err
 		}
 	}
 
-	dat.Dbg.AddOffset("OffsetOLD:3:FilesContent", stream)
-
 	return nil
 }
 
 func (dat *falloutDatV1) readDir(stream io.ReadSeeker, dir *falloutDirV1) (err error) {
 	//const errPrefix = errPackage + "readDir(1)"
-
-	dir.Dbg = make(dbg.Map)
-	dir.Dbg.AddOffset("OffsetOLD:0:Info", stream)
 
 	if err = binary.Read(stream, binary.BigEndian, &dir.FilesCount); err != nil {
 		return err
@@ -135,13 +123,10 @@ func (dat *falloutDatV1) readDir(stream io.ReadSeeker, dir *falloutDirV1) (err e
 		}
 	}
 
-	dir.Dbg.AddOffset("OffsetOLD:1:Files", stream)
-
 	dir.Files = make([]*falloutFileV1, dir.FilesCount)
 
 	for idx := range dir.Files {
 		dir.Files[idx] = new(falloutFileV1)
-		dir.Files[idx].Dbg = make(dbg.Map)
 		dir.Files[idx].parentDir = dir
 
 		if err = dat.readFile(stream, dir.Files[idx]); err != nil {
@@ -149,23 +134,17 @@ func (dat *falloutDatV1) readDir(stream io.ReadSeeker, dir *falloutDirV1) (err e
 		}
 	}
 
-	dir.Dbg.AddOffset("OffsetOLD:2:End", stream)
-
 	return nil
 }
 
 func (dat *falloutDatV1) readFile(stream io.ReadSeeker, file *falloutFileV1) (err error) {
 	const errPrefix = errPackage + "readFile(1)"
 
-	file.Dbg.AddOffset("OffsetOLD:0:Name", stream)
-
 	// do not introduce anything here which could change length of file.Name
 	// SetDbg() relies on file.Name length for offset jumping
 	if file.Name, err = dat.readString(stream); err != nil {
 		return err
 	}
-
-	file.Dbg.AddOffset("OffsetOLD:1:Info", stream)
 
 	if err = binary.Read(stream, binary.BigEndian, &file.PackedMode); err != nil {
 		return err
@@ -194,8 +173,6 @@ func (dat *falloutDatV1) readFile(stream io.ReadSeeker, file *falloutFileV1) (er
 	if err = binary.Read(stream, binary.BigEndian, &file.SizePacked); err != nil {
 		return err
 	}
-
-	file.Dbg.AddOffset("OffsetOLD:2:End", stream)
 
 	return nil
 }
