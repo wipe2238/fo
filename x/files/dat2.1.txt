@@ -1,0 +1,308 @@
+=================================================================
+
+		   Arcanum's DAT specifications
+
+		      Research made by MatuX
+		          The Mod Squad
+
+		   matiasp@XXXXXXXXXXXXXXXXXXXXX
+
+=================================================================
+
+(do not use wordwrap)
+
+This document will provide the necessary info to be able to
+(partially) understand Arcanum's DAT files and do such things
+like extractors and decompressors.
+I'm saying *partially* because I only researched the stuff
+needed to make a full-scale console extractor/decompressor,
+then there're some values that I don't know what the heck they
+mean, and didn't spend too much time thinking about it because
+it wasn't necessary (I ain't as free as the old days, now I'm
+much more busy ;) ).
+
+1. The history of the DAT format
+================================
+What do I know about the "history of the DAT format"? I don't
+know.. I just know that the new Arcanum's DAT are very very
+very similar to Fallout 2 DAT files and only presents a few
+new things (which makes things a little easier for extraction).
+
+I know the DAT format was first entered in Fallout 1, which
+was very different than what is now a days and I'm only talking
+about F1's DAT format because it was developed by the heads of
+Troika, because it's F2's predecessor and because its extension
+is "DAT", nothing else.
+
+So, we could say that there were 3 kind of DATs.. DAT1.0,
+DAT2.0 and DAT2.1.. Last one is, of course, Arcanum's DATs,
+and I'm saying 2.1 instead of 3.0 because they're very similar
+to the old DAT2.0 format. I could have said DAT2.5, though, but
+this is just introductory mambo jambo so I don't care :)
+
+Before beggining
+================
+Instead of naming Fallout 1's DAT, Fallout 2's DAT, Arcanum's
+DAT, I'll use a name convention I think it's suitable for this,
+as I stated before, everytime I say DAT1.0, I'll be referring to
+Fallout 1's DAT, DAT2.0 to Fallout 2's and DAT2.1 to Arcanum's.
+
+Since DAT2.0 is very similar to DAT2.1, I'll use the old doc
+I made about DAT2.0 as a base, I'll state the credits now and
+at the bottom of this doc: DAT File Structure - Document with
+DAT2.0 specifications created by MatuX, additional information
+provided by Serge from TeamX. You can find a copy of this doc
+at http://XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+1. The DAT2.1 format
+====================
+DAT2.1 is a file format that is part of the file index system
+that is used by Arcanum. A file index system is a system that is
+in charge of store and provide access to resource files used by
+an application (in this case, a game).
+
+If you didn't understand a single word, I'll resort to an old
+explanation used in the old DAT2.0 doc (I have corrected some
+grammar mistakes :)):
+
+"You can see Fallout's DAT files as if they where common ZIPs.
+ They're used to store files of any kind, compressed or not,
+ having the length you want, and, somewhere at the end of the
+ DAT file), you can find all the information about each one of
+ these files that will provide you the key to extract these
+ files."
+
+You just need to replace the phrase Fallout's DAT with Arcanum's
+DAT.
+
+DAT2.1s are effectively divided in 3 parts, just like DAT2.0:
+
+	Data Block
+		All the files are located here
+
+	Tree Block
+		All the directory structure
+		including information about
+		each item is located here
+
+	Tree Information Block
+		Information needed to locate
+		the Tree Block and other
+		unknown information.
+
+
+We will be talking about each block in a top down fashion instead
+of the way I did in the old DAT2.0 doc and that is because it'll
+be easier to understand this way.
+
+Tree Information Block
+======================
+This block contains some information that eludes me, and since
+I found the only value I was needing to do the undat program, I
+preferred to skip it and let someone else (if any) research it.
+
+So, basically, what does the Tree Information Block have of
+important? It contains a value representing how far are we from
+the beggining of the Tree Block. This value can be found at the
+last 4 bytes and doing a small formula can give us the exact
+position of where the Tree Block starts. This formula effectively
+is:
+	DatFileSize - TreeSubs = TreePos
+
+TreeSubs is the value I'm talking about and it means Tree
+Substract just because it acts as that :)
+DatFileSize is the file of the whole DAT in bytes.
+TreePos is the offset of where the Tree Block beggins.
+
+About the unknown values... Well, there're 2 (or 3?) pairs of
+information that eludes me and, like I already said like 10 times
+I didn't actually researched them because I didn't need them for
+Undat, if you want to research them, do it! I'll now say what I
+have so far.
+
+I tried dividing it in 3 pairs of data. The first one (16 bytes
+long) seems as if they were some weird random bytes, right after
+them, there're 4 bytes that appears in every DAT I have seen so
+far and it's "1TAD" (or 0x31 54 41 44). Then, after it, there's
+a 4 bytes int value which is the only one that appears to make
+sense, but I don't know what it's, albeit it remarks a pattern
+as it trends to be proportional to the file size (large files =
+big value, small files = small value).
+
+As you can see, this is the first (and only) big change to the
+DAT2.0 format. As far as I know, now you have to get the DAT file
+size manually and then do the substraction formula to get the
+TreePos. Plus there're some bytes that're unknown (and not
+actually needed) for me.
+What I'm thinking now... Maybe the "random bytes" are some sort
+of encripted key that is used by the Arcanum's engine to
+authenticate the DAT ? ? Should try to see what happens if I
+change them.
+
+Tree Block
+==========
+Every (or most of them) format that performs a file indexing
+system needs to know how the files it contains are called, where
+they were originally (as is directory) plus some miscellaneous
+info depending on the format. ZIP files have it, ACE files have
+it, and RARs have it. And this is what the Tree Block essentially
+is.
+
+As I just said we can find where the Tree Block starts (now
+called TreePos) by doing DatFileSize - TreeSubs = TreePos.
+
+	Tree Block structure
+	--------------------
+	The Tree Block uses a common structure for every item on
+	it. What only differs is the first 4 bytes value we can
+	find at the beggining of it, the FilesTotal. As I think
+	I already said, it contains the amount of files the DAT
+	contains.
+	After it, we can start reading the files using one common
+	structure as showed below:
+
+           /----------------------------------------------------\
+           |  Var Name    |  Bytes long  |  Small Description   |
+           |--------------|--------------|----------------------|
+           | FileNameSize |   4 Bytes    | Size of Name         |
+           |    Name      | FileNameSize | Path [+ Filename] of |
+           |              |              | this item            |
+           |   Unknown    |   4 Bytes    | Unknown              |
+           |    Type      |   4 Bytes    | Item type            |
+           |   RealSize   |   4 Bytes    | Decompressed size    |
+           |  PackedSize  |   4 Bytes    | Compressed size      |
+           |    Offset    |   4 Bytes    | Location in bytes of |
+           |              |              | the file in the DAT  |
+           \----------------------------------------------------/
+
+		FileNameSize: Contains the amount of characters
+                      Name in ASCII-Z format (including the 0x00)
+		Name: Contains the path and filename (when not of
+                      Type DIRECTORY) Ex: art\facade\BHull.ART.
+		      It's on ASCII-Z format so, at the end of
+		      the string it's included the ASCII char
+		      zero (or 0x00)
+		Unknown: Not known and useless on undat making
+		Type: The way the file is stored on the DAT, as
+		      far as I saw, I only found 3 types:
+			- COMPRESSED (uses zlib compression)
+				0x02
+			- UNCOMPRESSED (isn't compressed)
+				0x01
+			- DIRECTORY (the item is a directory)
+				0x400
+		RealSize: Size of the decompressed file
+		PackedSize: Size of the compressed file
+		Offset: Location of the file in the DAT
+
+	A note on Types:
+	Apart from the ASCII-Z format used on Name and how the
+	Type is handled, everything else is pretty much the same
+	than DAT2.0. Now COMPRESSED can be defined with a value
+	of 0x02 (instead of 0x01) like in DAT2.0, and I'm just
+	guessing UNCOMPRESSED can be defined with 0x01.
+	About the new DIRECTORY type, it effectively marks a
+	directory, but it appears "some times" so, it can't be
+	actually used to delimit a change of directory, then, I
+	don't really know what is the mean of it, although you
+	could define empty directories (like some DAT2.1s does).
+	Apart from this, when the item is DIRECTORY then,
+	RealSize, PackedSize and Offset have an obvious value of
+	0x00.
+
+Data Block
+==========
+This is the last block (which ironically starts at the beggining
+of the DAT), that we will cover, and that is because there's
+nothing else to cover :).
+The Data Block contains the files, they *aren't* delimited by
+anything thus they're presented in a lineal, non-structured,
+consecutive way. As we just saw, all the delimitation can be set
+using the Tree Block, as of Offset means where exactly the file
+begins and PackedSize means how many bytes does the file have
+(inside the DAT, of course), then, right after the last byte, the
+new file begins.
+
+UNCOMPRESSED-Type files doesn't need further explanation as they
+are presented as is. You could open the DAT on an hex editor, go
+to the offset, select the amount of bytes RealSize says then copy
+and paste them on a new file and voila! You extracted the file! ;)
+
+DIRECTORY-Type files, well, they aren't files, they actually are
+nothing! And that is just because they don't actually exists
+inside the Data Block, not a single mark of its existence can be
+found in this block. Remember I said DIRECTORY-Type items on the
+Tree Block have 0 PackedSize, 0 RealSize and 0 Offset?
+
+COMPRESSED-Type files are the only ones that needs a little bit of
+explanation due to their uncommon structure (they're compressed!).
+Just like Fallout 2 (and somewhat like Fallout 1, I think),
+Arcanum's DAT (or DAT2.1) uses Zlib as their compression library,
+it isn't weird since I have seen lots of games being using it, and
+that includes Fallout 2 and Fallout Tactics. I won't explain the
+Zlib format here since there's already a lot of information about
+its specifications plus, you can get the source codes, everything
+at:
+	http://www.gzip.org/zlib/
+
+As of this day (and like three years ago, too), the last version of
+Zlib is 1.1.3. And here you have the copyrights:
+Zlib version 1.1.3, July 9th, 1998
+Copyright (C) 1995-1998 Jean-loup Gailly and Mark Adler.
+As far as I know, these are the creators of PNG, GZip and ZIP and
+I'm adding this information just because everyone does :):
+    Compressed files are "zlib stream data" (RFC-1950(zlib
+   format), RFC-1951(deflate format), RFC-1952(gzip format)).
+
+The only thing you need to know is that the header of the file has
+been slightly modified (maybe because no one wants to write out the
+original Zlib credits) and it's presented as follows:
+
+     ASCII : xÚ
+       Hex : 0x78 DA
+      Byte : 120 218
+       Int : 30938
+
+There's no need to change the header since Zlib will decompress it
+anyways (not sure if it actually skips the header signature) and as
+of Fallout 2, there were no need to change the original Zlib header
+back to xÚ when building DAT2.0 files.
+
+-------------------------------------------------------------------
+
+Well, that is it. I think I have included enough info to make both
+a Undat and a (yet unexistent) Datpack, although I don't know if
+the unknown values are actually used by the engine, though they
+change on each DAT as if they were really alive...
+
+Hope you enjoyed reading this spec, be sure to check out the new
+XXXXXXXX site which will represent the The Mod Squad section of
+Arcanum!
+
+	I can be contacted at matiasp@XXXXXXXXXXXXXXXXXXXXX
+	or at http://XXXXXXXXXXXXXXXXXX
+
+This document was made by MatuX based on the original DAT2.0 doc
+made by MatuX with the help of Serge from TeamX.
+
+MatuX is a proud member of The Mod Squad, a game hacking group
+with a large background developing programs, documents and mods
+for Fallout 1 and 2, most famous stuff are:
+
+    Programs
+	Fallout 2 DATMan - Ultrafast DAT2.0 Packer/Unpacker w/GUI
+	Fallout 2 FAME - Fallout Mod Enabler
+	Fallout 2 FUCK - Fallout Utility for Critter tinKering
+	Fallout Tactics - BOSView
+    Mods
+	Fallout 2 DNA - The first ever Fallout 2 mod made
+	Fallout 2 HKTCAlpha
+	Fallout 2 Horrigan Armor
+	Fallout 2 Klint the Generous
+
+And other stuff :)
+
+Zlib version 1.1.3, July 9th, 1998
+Copyright (C) 1995-1998 Jean-loup Gailly and Mark Adler.
+
+-------------------------------------------------------------------
