@@ -6,27 +6,13 @@ import (
 	"os"
 	"slices"
 	"strings"
-
-	"github.com/spf13/cobra"
+	"testing"
 )
 
 const falldemo = "../../dat/testdata/falldemo.dat1"
 
-func appExec(mute bool, name string, args ...string) (err error) {
+func appExec(mute bool, args ...string) (err error) {
 	func(...any) {}(appExecMute, appExecLoud)
-
-	var cmdRun *cobra.Command
-
-	for _, cmdFind := range app.Commands() {
-		if cmdFind.Name() == name {
-			cmdRun = cmdFind
-			break
-		}
-	}
-
-	if cmdRun == nil {
-		return fmt.Errorf("test: command '%s' not found", name)
-	}
 
 	var oldOut = app.OutOrStdout()
 	var oldErr = app.ErrOrStderr()
@@ -38,10 +24,10 @@ func appExec(mute bool, name string, args ...string) (err error) {
 
 	var osArgs = os.Args
 
-	os.Args = slices.Insert(args, 0, "APP", name)
+	os.Args = slices.Insert(args, 0, "APP")
 
 	fmt.Printf("Execute: %s\n", strings.Join(os.Args, " "))
-	err = app.Execute()
+	err = run()
 
 	os.Args = osArgs
 
@@ -53,10 +39,14 @@ func appExec(mute bool, name string, args ...string) (err error) {
 	return err
 }
 
-func appExecMute(name string, args ...string) (err error) {
-	return appExec(true, name, args...)
+func appExecMute(args ...string) (err error) {
+	return appExec(true, args...)
 }
 
-func appExecLoud(name string, args ...string) (err error) {
-	return appExec(false, name, args...)
+func appExecLoud(args ...string) (err error) {
+	return appExec(false, args...)
+}
+
+func TestApp(t *testing.T) {
+	//test.Error(t, appExecMute("invalid-sub-command"))
 }

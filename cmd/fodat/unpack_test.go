@@ -7,7 +7,7 @@ import (
 	"github.com/shoenig/test"
 )
 
-func TestUnpack(t *testing.T) {
+func TestAppUnpack(t *testing.T) {
 	const dir = "../../bin/test.unpack"
 	const file = "ART/BACKGRND/BACKGRND.LST"
 

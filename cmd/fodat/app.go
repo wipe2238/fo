@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+
+	"github.com/wipe2238/fo/cmd"
 )
 
 // All top-level args must be added via `app.AddCommand(...)` (preferably one sub-command per file),
@@ -12,6 +14,7 @@ import (
 var app = &cobra.Command{
 	Args:    cobra.ExactArgs(1),
 	GroupID: "main",
+	Version: "info\n\n" + cmd.Version(),
 }
 
 func init() {
@@ -35,7 +38,7 @@ func run() error {
 	// Add `cobra` group for builtin sub-commands
 	// Should be done right before Execute*(), which will place them at the bottom of usage text
 	//
-	// Ungrouped sub-commands still will be shown below that (`Additional Commands`),
+	// Ungrouped sub-commands still will be shown below that (as `Additional Commands`),
 	// which might be a good place for args which are still work in progress, added by forks, etc.
 	app.SetHelpCommandGroupID("cobra")
 	app.SetCompletionCommandGroupID("cobra")
@@ -44,11 +47,7 @@ func run() error {
 		Title: "General Commands:",
 	})
 
-	if err := app.Execute(); err != nil {
-		return err
-	}
-
-	return nil
+	return app.Execute()
 }
 
 func main() {
